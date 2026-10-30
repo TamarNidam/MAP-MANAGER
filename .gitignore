@@ -1,0 +1,19 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+*.suo
+
+# Node (client)
+node_modules/
+dist/
+
+# Local secrets and environment
+.env
+*.local.json
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/

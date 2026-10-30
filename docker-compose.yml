@@ -1,0 +1,24 @@
+# Local development stack. For now: MongoDB only. The API and client services are added in a later phase.
+services:
+  mongo:
+    image: mongo:8
+    container_name: mapmanager-mongo
+    restart: unless-stopped
+    ports:
+      # Bound to localhost only, so the database is not reachable from the network.
+      - "127.0.0.1:27017:27017"
+    environment:
+      # Development defaults. Override them with a .env file or real environment variables.
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-mapmanager}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-devpassword}
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  mongo-data:
