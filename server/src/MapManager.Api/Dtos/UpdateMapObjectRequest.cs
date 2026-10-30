@@ -20,6 +20,14 @@ public sealed class UpdateMapObjectRequest
     [ObjectId]
     public string LayerId { get; init; } = string.Empty;
 
+    /// <summary>Hex color in the form "#RRGGBB". Leaving it out removes the current color.</summary>
+    [RegularExpression(ValidationLimits.HexColorPattern, ErrorMessage = ValidationLimits.HexColorMessage)]
+    public string? Color { get; init; }
+
+    /// <summary>Not accepted: only polygons have a shape.</summary>
+    [MustBeAbsent("Objects do not have a shape.")]
+    public string? Shape { get; init; }
+
     /// <summary>Location as a GeoJSON position: [longitude, latitude].</summary>
     [Required]
     [GeoPosition]

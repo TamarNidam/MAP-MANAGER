@@ -18,6 +18,10 @@ public interface IFeatureRepository
     /// <summary>Returns up to <paramref name="limit"/> features of one kind, newest first.</summary>
     Task<IReadOnlyList<FeatureDocument>> ListAsync(FeatureKind kind, int limit, CancellationToken cancellationToken);
 
+    /// <summary>Returns up to <paramref name="limit"/> features of any kind that match the query, newest first.</summary>
+    /// <exception cref="Errors.InvalidGeometryException">MongoDB rejected the bounding box.</exception>
+    Task<IReadOnlyList<FeatureDocument>> QueryAsync(MapDataQuery query, int limit, CancellationToken cancellationToken);
+
     /// <summary>Returns the feature, or null when no feature of this kind has the id.</summary>
     Task<FeatureDocument?> GetByIdAsync(string id, FeatureKind kind, CancellationToken cancellationToken);
 

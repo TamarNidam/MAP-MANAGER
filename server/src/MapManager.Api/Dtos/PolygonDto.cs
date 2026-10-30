@@ -1,3 +1,5 @@
+using MapManager.Api.Models;
+
 namespace MapManager.Api.Dtos;
 
 /// <summary>A polygon as returned by the API.</summary>
@@ -5,6 +7,9 @@ namespace MapManager.Api.Dtos;
 /// <param name="Name">Display name.</param>
 /// <param name="LayerId">Id of the layer the polygon belongs to.</param>
 /// <param name="CreatedBy">Name of the user who created the polygon.</param>
+/// <param name="Color">Hex color "#RRGGBB", or null when none was set.</param>
+/// <param name="Shape">How the polygon was drawn: "polygon", "rectangle" or "circle".</param>
+/// <param name="RadiusMeters">Radius of a circle in meters, or null when none was set.</param>
 /// <param name="Coordinates">GeoJSON polygon coordinates: closed rings of [longitude, latitude] positions.</param>
 /// <param name="Center">Area-weighted centroid of the exterior ring as { lat, lon }. Derived, not stored.</param>
 /// <param name="CreatedAt">Creation time (UTC).</param>
@@ -14,7 +19,10 @@ public sealed record PolygonDto(
     string Name,
     string LayerId,
     string CreatedBy,
+    string? Color,
+    PolygonShape Shape,
+    double? RadiusMeters,
     double[][][] Coordinates,
     GeoPointDto Center,
     DateTime CreatedAt,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt) : MapItemDto;

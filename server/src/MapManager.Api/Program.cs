@@ -37,6 +37,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IMapObjectService, MapObjectService>();
 builder.Services.AddScoped<IPolygonService, PolygonService>();
 builder.Services.AddScoped<ILayerService, LayerService>();
+builder.Services.AddScoped<IMapDataService, MapDataService>();
 builder.Services.AddScoped<LayerReferenceValidator>();
 
 // ---- Web API ----
@@ -57,7 +58,8 @@ builder.Services.AddControllers(options =>
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// Documents map-data items as "an object or a polygon" instead of an empty base type.
+builder.Services.AddSwaggerGen(options => options.UseOneOfForPolymorphism());
 builder.Services.AddHealthChecks().AddCheck<MongoHealthCheck>("mongodb");
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();

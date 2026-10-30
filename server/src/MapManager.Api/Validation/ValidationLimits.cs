@@ -9,7 +9,26 @@ public static class ValidationLimits
 
     public const int MaxLayerNameLength = 50;
 
-    /// <summary>A layer color: "#" followed by six hex digits.</summary>
+    public const string HexColorMessage = "Must be a hex color such as #1D5FD0.";
+
+    /// <summary>Largest circle radius: about half of the Earth's circumference.</summary>
+    public const double MaxRadiusMeters = 20_000_000;
+
+    public const int DefaultMapDataLimit = 20;
+
+    public const int MaxMapDataLimit = 100;
+
+    /// <summary>About 100 years. Also keeps the date arithmetic in range.</summary>
+    public const int MaxCreatedWithinDays = 36_500;
+
+    /// <summary>Room for 100 comma-separated layer ids.</summary>
+    public const int MaxLayerFilterLength = 100 * (ObjectIdAttribute.Length + 1);
+
+    public const int MaxBboxLength = 200;
+
+    public const int MaxCursorLength = 200;
+
+    /// <summary>A color: "#" followed by six hex digits.</summary>
     public const string HexColorPattern = "^#[0-9a-fA-F]{6}$";
 
     public const int MaxCreatedByLength = 50;

@@ -19,7 +19,8 @@ public static class FeatureMapper
             ObjectType = request.ObjectType!.Value,
             Name = request.Name.Trim(),
             LayerId = request.LayerId,
-            CreatedBy = request.CreatedBy.Trim()
+            CreatedBy = request.CreatedBy.Trim(),
+            Color = request.Color
         },
         CreatedAt = now,
         UpdatedAt = now
@@ -34,7 +35,10 @@ public static class FeatureMapper
             Kind = FeatureKind.Polygon,
             Name = request.Name.Trim(),
             LayerId = request.LayerId,
-            CreatedBy = request.CreatedBy.Trim()
+            CreatedBy = request.CreatedBy.Trim(),
+            Color = request.Color,
+            Shape = request.Shape ?? PolygonShape.Polygon,
+            RadiusMeters = request.RadiusMeters
         },
         CreatedAt = now,
         UpdatedAt = now
@@ -46,6 +50,9 @@ public static class FeatureMapper
         request.Name.Trim(),
         request.ObjectType!.Value,
         request.LayerId,
+        request.Color,
+        Shape: null,
+        RadiusMeters: null,
         now);
 
     /// <summary>Builds the field changes for a polygon update.</summary>
@@ -54,7 +61,14 @@ public static class FeatureMapper
         request.Name.Trim(),
         ObjectType: null,
         request.LayerId,
+        request.Color,
+        request.Shape ?? PolygonShape.Polygon,
+        request.RadiusMeters,
         now);
+
+    /// <summary>Maps a document of either kind to its API shape.</summary>
+    public static MapItemDto ToMapItemDto(FeatureDocument document) =>
+        document.Properties.Kind == FeatureKind.Object ? ToMapObjectDto(document) : ToPolygonDto(document);
 
     /// <summary>Maps an object document to its API shape, including its derived center.</summary>
     public static MapObjectDto ToMapObjectDto(FeatureDocument document)
@@ -66,6 +80,7 @@ public static class FeatureMapper
             document.Properties.ObjectType ?? throw new InvalidOperationException("A stored object must have an object type."),
             document.Properties.LayerId,
             document.Properties.CreatedBy,
+            document.Properties.Color,
             position,
             CenterCalculator.OfPosition(position),
             document.CreatedAt,
@@ -81,6 +96,9 @@ public static class FeatureMapper
             document.Properties.Name,
             document.Properties.LayerId,
             document.Properties.CreatedBy,
+            document.Properties.Color,
+            document.Properties.Shape ?? PolygonShape.Polygon,
+            document.Properties.RadiusMeters,
             rings,
             CenterCalculator.OfRing(rings[0]),
             document.CreatedAt,

@@ -27,7 +27,8 @@ Take-home interview task: a client/server app for managing polygons and objects 
 
 ## Data model
 - Collections `features` (objects and polygons) and `layers`.
-- Feature: `geometry` (Point or Polygon), `properties` (`kind`, `objectType`, `name`, `layerId`, `createdBy`), `createdAt`, `updatedAt`.
+- Feature: `geometry` (Point or Polygon), `properties` (`kind`, `objectType`, `name`, `layerId`, `createdBy`, `color`, `shape`, `radiusMeters`), `createdAt`, `updatedAt`.
+- Optional properties: `color` is hex `#RRGGBB` (objects and polygons). `shape` is `polygon` (default), `rectangle` or `circle` (polygons only; objects reject it). `radiusMeters` is > 0 and only accepted when `shape` is `circle`. Features stored without them must still read fine.
 - Stored enum values are lowercase ids, the same as the API (`"object"`, `"polygon"`, `"jeep"`), through one BSON convention.
 - `layerId` is required and must refer to an existing layer. One default layer is seeded at startup; it cannot be deleted.
 - `center` (`{ lat, lon }`) is derived in `Mapping/` and never stored.
@@ -37,14 +38,15 @@ Take-home interview task: a client/server app for managing polygons and objects 
 - Indexes are created at startup (`MongoIndexInitializer`). Keep them in sync with the queries.
 
 ## API
-Done: `GET /api/object-types`; `GET, POST /api/layers`; `PUT, DELETE /api/layers/{id}`; `POST, GET /api/objects`; `GET, PUT, DELETE /api/objects/{id}`; `POST, GET, DELETE /api/polygons` (DELETE deletes all polygons, returns `{ deletedCount }`); `GET, PUT, DELETE /api/polygons/{id}`.
-Next: `GET /api/map-data` with `type, creator, createdWithinDays, within, q, layers, bbox, limit, cursor` -> `{ items, nextCursor }`. Phase 3 currently reads the existing object and polygon list endpoints.
+Done: `GET /api/object-types`; `GET, POST /api/layers`; `PUT, DELETE /api/layers/{id}`; `POST, GET /api/objects`; `GET, PUT, DELETE /api/objects/{id}`; `POST, GET, DELETE /api/polygons` (DELETE deletes all polygons, returns `{ deletedCount }`); `GET, PUT, DELETE /api/polygons/{id}`; `GET /api/map-data` with `type, creator, createdWithinDays, within, q, layers, bbox, limit, cursor` -> `{ items, nextCursor }` (items are the object and polygon DTOs with a `kind` discriminator).
+The Phase 3 client still reads the object and polygon list endpoints, not `/api/map-data`.
 
 ## Behavior decisions
 - Cursor pagination, sorted by `createdAt` desc then `_id` desc. Never `skip`.
 - Save = batch POST; edit = PUT. Hard delete. No authentication (`createdBy` is a plain string).
 - Batch create validates everything first; the repository rollback is a best-effort fallback (no transactions).
 - Unknown JSON fields on PUT are ignored. Hide/show and layer visibility are client-only state.
+- PUT replaces all editable fields: leaving out `color` or `radiusMeters` removes it, leaving out `shape` resets it to `polygon`.
 - "Objects inside a polygon" uses `$geoWithin` with the `2dsphere` index.
 
 ## Security
@@ -56,4 +58,4 @@ Mongo bound to localhost; only the marked dev credentials in source. Bound all i
 - Keep the README accurate. Add tests for important behavior only.
 
 ## Phases
-0 Setup: done. 1 Server core: done. 2 `/api/map-data`: next. **3 Client vertical slice and drawing UX (Phase 3c): done.** 4 Panels (filters, layers, editing, Duplicate): not started. 5 Docker for API and client, polish. 6 Aggregations.
+0 Setup: done. 1 Server core: done. 2 `/api/map-data`: done. 2b Optional `color`, `shape`, `radiusMeters`: done. 3 Client vertical slice and drawing UX (Phase 3c): done. **4 Panels (filters, layers, editing, Duplicate): next.** 5 Docker for API and client, polish. 6 Aggregations.

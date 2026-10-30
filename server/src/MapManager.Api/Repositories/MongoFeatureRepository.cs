@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using MapManager.Api.Errors;
 using MapManager.Api.Infrastructure;
 using MapManager.Api.Models;
@@ -11,6 +12,9 @@ public sealed class MongoFeatureRepository : IFeatureRepository
 {
     /// <summary>MongoDB error code "Can't extract geo keys": the 2dsphere index rejected a geometry.</summary>
     private const int InvalidGeometryErrorCode = 16755;
+
+    /// <summary>MongoDB error code "BadValue": a query geometry could not be used.</summary>
+    private const int BadValueErrorCode = 2;
 
     private static readonly FilterDefinitionBuilder<FeatureDocument> Filter = Builders<FeatureDocument>.Filter;
 
@@ -66,6 +70,24 @@ public sealed class MongoFeatureRepository : IFeatureRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<FeatureDocument>> QueryAsync(MapDataQuery query, int limit, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _features
+                .Find(MapDataFilterBuilder.Build(query))
+                .SortByDescending(f => f.CreatedAt)
+                .ThenByDescending(f => f.Id)
+                .Limit(limit)
+                .ToListAsync(cancellationToken);
+        }
+        catch (MongoCommandException ex) when (ex.Code == BadValueErrorCode)
+        {
+            // Filters are validated before they get here. What is left is a box too small for the 2dsphere engine.
+            throw new InvalidGeometryException("The bounding box is too small to search.", ex);
+        }
+    }
+
     public async Task<FeatureDocument?> GetByIdAsync(string id, FeatureKind kind, CancellationToken cancellationToken)
     {
         if (!ObjectId.TryParse(id, out _))
@@ -93,10 +115,11 @@ public sealed class MongoFeatureRepository : IFeatureRepository
             .Set(f => f.Properties.LayerId, update.LayerId)
             .Set(f => f.UpdatedAt, update.UpdatedAt);
 
-        // The object type is removed instead of being stored as null, matching how new polygons are written.
-        set = update.ObjectType is null
-            ? set.Unset(f => f.Properties.ObjectType)
-            : set.Set(f => f.Properties.ObjectType, update.ObjectType);
+        // Optional fields are removed instead of being stored as null, matching how new features are written.
+        set = SetOrUnset(set, f => f.Properties.ObjectType, update.ObjectType);
+        set = SetOrUnset(set, f => f.Properties.Color, update.Color);
+        set = SetOrUnset(set, f => f.Properties.Shape, update.Shape);
+        set = SetOrUnset(set, f => f.Properties.RadiusMeters, update.RadiusMeters);
 
         var options = new FindOneAndUpdateOptions<FeatureDocument> { ReturnDocument = ReturnDocument.After };
 
@@ -138,6 +161,14 @@ public sealed class MongoFeatureRepository : IFeatureRepository
         var result = await _features.DeleteManyAsync(ByKind(kind), cancellationToken);
         return result.DeletedCount;
     }
+
+    private static UpdateDefinition<FeatureDocument> SetOrUnset<TField>(
+        UpdateDefinition<FeatureDocument> update,
+        Expression<Func<FeatureDocument, TField>> field,
+        TField value) =>
+        value is null
+            ? update.Unset(new ExpressionFieldDefinition<FeatureDocument>(field))
+            : update.Set(field, value);
 
     private static FilterDefinition<FeatureDocument> ByKind(FeatureKind kind) =>
         Filter.Eq(f => f.Properties.Kind, kind);
