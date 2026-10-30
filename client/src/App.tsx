@@ -20,7 +20,9 @@ export default function App() {
   const [addingObject, setAddingObject] = useState(false);
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [navigationRequest, setNavigationRequest] = useState<{ kind: "object" | "polygon"; id: string; center: TableItem["center"]; requestId: number } | null>(null);
   const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
+  const navigationRequestId = useRef(0);
 
   const defaultLayer = layers.data?.find((layer) => layer.name.toLowerCase() === "default");
   const savedObjects = objects.data ?? [];
@@ -49,7 +51,15 @@ export default function App() {
       createdBy: "Map Manager",
       coordinates: leafletToGeoJson(item.point),
     }))),
-    onSuccess: async () => { setPendingObjects([]); setSelected(null); await refresh(); },
+    onSuccess: async (created, items) => {
+      queryClient.setQueryData<MapObjectDto[]>(["objects"], (current) => [...created, ...(current ?? [])]);
+      if (selected?.kind === "object") {
+        const index = items.findIndex((item) => item.id === selected.id);
+        if (index >= 0 && created[index]) setSelected({ kind: "object", id: created[index].id });
+      }
+      setPendingObjects([]);
+      await refresh();
+    },
     onError: (error) => setErrorMessage(error.message),
   });
 
@@ -60,7 +70,15 @@ export default function App() {
       createdBy: "Map Manager",
       coordinates: item.coordinates,
     }))),
-    onSuccess: async () => { setPendingPolygons([]); setSelected(null); await refresh(); },
+    onSuccess: async (created, items) => {
+      queryClient.setQueryData<PolygonDto[]>(["polygons"], (current) => [...created, ...(current ?? [])]);
+      if (selected?.kind === "polygon") {
+        const index = items.findIndex((item) => item.id === selected.id);
+        if (index >= 0 && created[index]) setSelected({ kind: "polygon", id: created[index].id });
+      }
+      setPendingPolygons([]);
+      await refresh();
+    },
     onError: (error) => setErrorMessage(error.message),
   });
 
@@ -162,6 +180,12 @@ export default function App() {
     });
   };
 
+  const navigateToItem = (item: TableItem) => {
+    setSelected({ kind: item.kind, id: item.id });
+    navigationRequestId.current += 1;
+    setNavigationRequest({ kind: item.kind, id: item.id, center: item.center, requestId: navigationRequestId.current });
+  };
+
   const loading = objects.isLoading || polygons.isLoading || layers.isLoading || objectTypes.isLoading;
   const queryError = [objects.error, polygons.error, layers.error, objectTypes.error].find(Boolean);
   const error = errorMessage || queryError?.message || "";
@@ -186,6 +210,7 @@ export default function App() {
           drawing={drawing}
           addingObject={addingObject}
           selectedObjectType={selectedType}
+          navigationRequest={navigationRequest}
           onSelect={(next) => { setSelected(next); setConfirmDeleteAll(false); }}
           onObjectPlace={placeObject}
           onPolygonDrawn={onPolygonDrawn}
@@ -222,6 +247,7 @@ export default function App() {
           hidden={hidden}
           rowRefs={rowRefs}
           onSelect={(next) => { setSelected(next); setConfirmDeleteAll(false); }}
+          onDoubleClick={navigateToItem}
           onToggleVisibility={toggleVisibility}
         />
         {addingObject && <div className="mode-banner">Click the map to place a {types.find((type) => type.id === selectedType)?.label ?? "object"}<button onClick={() => setAddingObject(false)} aria-label="Cancel placement">×</button></div>}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import L from "leaflet";
 import { MapContainer, Marker, Polygon, TileLayer, useMap } from "react-leaflet";
-import type { MapObjectDto, PolygonDto } from "../api/types";
+import type { GeoPointDto, MapObjectDto, PolygonDto } from "../api/types";
 import type { DrawingShape, PendingObject, PendingPolygon, Selection } from "../types/map";
 import { geoJsonPolygonToLeaflet, geoJsonToLeaflet, type LeafletPosition } from "../map/coords";
 import { objectIcon } from "../map/ObjectMarker";
@@ -21,6 +21,7 @@ type MapViewProps = {
   drawing: DrawingShape | null;
   addingObject: boolean;
   selectedObjectType: string;
+  navigationRequest: { kind: "object" | "polygon"; id: string; center: GeoPointDto; requestId: number } | null;
   onSelect: (selection: Selection) => void;
   onObjectPlace: (point: [number, number]) => void;
   onPolygonDrawn: (coordinates: number[][][], center: LeafletPosition) => void;
@@ -63,6 +64,28 @@ function PersistMapView() {
       map.off("dragend", saveView);
     };
   }, [map]);
+
+  return null;
+}
+
+function NavigateToItem({ props }: { props: MapViewProps }) {
+  const map = useMap();
+  const request = props.navigationRequest;
+
+  useEffect(() => {
+    if (!request) return;
+    if (request.kind === "object") {
+      map.flyTo([request.center.lat, request.center.lon], Math.max(15, map.getZoom()));
+      return;
+    }
+
+    const coordinates = props.polygons.find((polygon) => polygon.id === request.id)?.coordinates
+      ?? props.pendingPolygons.find((polygon) => polygon.id === request.id)?.coordinates;
+    if (!coordinates) return;
+    const bounds = L.latLngBounds([]);
+    geoJsonPolygonToLeaflet(coordinates).flat().forEach((point) => bounds.extend(point));
+    if (bounds.isValid()) map.fitBounds(bounds, { padding: [36, 36], maxZoom: 17 });
+  }, [map, request?.requestId]);
 
   return null;
 }
@@ -115,6 +138,7 @@ export function MapView(props: MapViewProps) {
       />
       <PersistMapView />
       <FitAllControl props={props} />
+      <NavigateToItem props={props} />
       <ShapeDrawing
         shape={props.drawing}
         addingObject={props.addingObject}
@@ -131,7 +155,7 @@ export function MapView(props: MapViewProps) {
           <Marker
             key={object.id}
             position={geoJsonToLeaflet(object.coordinates)}
-            icon={objectIcon(object.objectType, selected)}
+            icon={objectIcon(object.objectType, selected, false, object.id)}
             eventHandlers={{ click: (event) => { L.DomEvent.stopPropagation(event.originalEvent); props.onSelect({ kind: "object", id: object.id }); } }}
           />
         );
@@ -144,7 +168,7 @@ export function MapView(props: MapViewProps) {
           <Marker
             key={object.id}
             position={object.point}
-            icon={objectIcon(object.objectType, selected)}
+            icon={objectIcon(object.objectType, selected, true, object.id)}
             eventHandlers={{ click: (event) => { L.DomEvent.stopPropagation(event.originalEvent); props.onSelect({ kind: "object", id: object.id }); } }}
           />
         );
@@ -157,7 +181,13 @@ export function MapView(props: MapViewProps) {
           <Polygon
             key={polygon.id}
             positions={geoJsonPolygonToLeaflet(polygon.coordinates)}
-            ref={(layer) => { if (selected) layer?.bringToFront(); }}
+            ref={(layer) => {
+              if (!layer) return;
+              if (selected) layer.bringToFront();
+              const path = layer.getElement();
+              path?.setAttribute("data-feature-kind", "polygon");
+              path?.setAttribute("data-feature-id", polygon.id);
+            }}
             pathOptions={{ color: selected ? "#B7792D" : "#0F6B63", weight: selected ? 4 : 2, fillOpacity: selected ? 0.38 : 0.16, className: selected ? "selected-feature" : "" }}
             eventHandlers={{ click: (event) => { L.DomEvent.stopPropagation(event.originalEvent); props.onSelect({ kind: "polygon", id: polygon.id }); } }}
           />
@@ -171,8 +201,14 @@ export function MapView(props: MapViewProps) {
           <Polygon
             key={polygon.id}
             positions={geoJsonPolygonToLeaflet(polygon.coordinates)}
-            ref={(layer) => { if (selected) layer?.bringToFront(); }}
-            pathOptions={{ color: selected ? "#B7792D" : "#0F6B63", weight: selected ? 4 : 2, dashArray: "6 6", fillOpacity: selected ? 0.3 : 0.08, className: selected ? "selected-feature" : "" }}
+            ref={(layer) => {
+              if (!layer) return;
+              if (selected) layer.bringToFront();
+              const path = layer.getElement();
+              path?.setAttribute("data-feature-kind", "polygon");
+              path?.setAttribute("data-feature-id", polygon.id);
+            }}
+            pathOptions={{ color: "#C1842D", weight: selected ? 4 : 2, dashArray: "6 6", fillColor: selected ? "#E6BD76" : "#F4E7CE", fillOpacity: selected ? 0.38 : 0.2, className: selected ? "selected-feature unsaved-feature" : "unsaved-feature" }}
             eventHandlers={{ click: (event) => { L.DomEvent.stopPropagation(event.originalEvent); props.onSelect({ kind: "polygon", id: polygon.id }); } }}
           />
         );

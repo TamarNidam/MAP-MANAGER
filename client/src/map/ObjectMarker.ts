@@ -9,9 +9,11 @@ const artwork: Record<string, string> = {
   tower: '<path d="M17 3 15 7h3l-1 4h2l-2 4h3l-3 10h-3l1-8H9l1 8H7L4 15h3l-2-4h2l-1-4h3L7 3h10Zm-4 14h2l1-6h-4l1 6Z" fill="currentColor"/>',
 };
 
-export function objectIcon(typeId: string, selected = false): L.DivIcon {
+export function objectIcon(typeId: string, selected = false, unsaved = false, featureId = ""): L.DivIcon {
   const icon = artwork[typeId] ?? artwork.marker;
-  const html = `<span class="map-object-icon${selected ? " is-selected" : ""}"><svg viewBox="0 0 36 36" aria-hidden="true">${icon}</svg></span>`;
+  const classes = [selected && "is-selected", unsaved && "is-unsaved"].filter(Boolean).join(" ");
+  const badge = unsaved ? '<i class="unsaved-map-badge" aria-hidden="true"></i>' : "";
+  const html = `<span class="map-object-icon ${classes}" data-feature-kind="object" data-feature-id="${featureId}"><svg viewBox="0 0 36 36" aria-hidden="true">${icon}</svg>${badge}</span>`;
   const size = selected ? 42 : 36;
   return L.divIcon({ html, className: "map-object-marker", iconSize: [size, size], iconAnchor: [size / 2, size - 6] });
 }

@@ -80,6 +80,7 @@ type MapDataPanelProps = {
   hidden: Set<string>;
   rowRefs: React.MutableRefObject<Map<string, HTMLTableRowElement>>;
   onSelect: (selection: Selection) => void;
+  onDoubleClick: (item: TableItem) => void;
   onToggleVisibility: (key: string) => void;
 };
 
@@ -101,6 +102,7 @@ export function MapDataPanel(props: MapDataPanelProps) {
                   ref={(element) => { if (element) props.rowRefs.current.set(key, element); else props.rowRefs.current.delete(key); }}
                   className={`${isSelected ? "is-selected" : ""}${isHidden ? " is-hidden" : ""}`}
                   onClick={() => props.onSelect({ kind: item.kind, id: item.id })}
+                  onDoubleClick={() => props.onDoubleClick(item)}
                   aria-selected={isSelected}
                 >
                   <td>{item.label}{item.saved ? "" : <span className="unsaved-dot" title="Unsaved" />}</td>

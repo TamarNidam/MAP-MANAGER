@@ -69,7 +69,7 @@ th { padding: 7px 4px; color: #8a9693; border-bottom: 1px solid var(--line); tex
 th:first-child, td:first-child { width: 43%; padding-left: 7px; }
 th:last-child, td:last-child { width: 30px; text-align: center; }
 td { overflow: hidden; padding: 7px 4px; border-bottom: 1px solid #eff2f1; color: #53615e; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
-tbody tr { cursor: pointer; }
+tbody tr { cursor: pointer; user-select: none; }
 tbody tr:hover { background: #f7faf9; }
 tbody tr.is-selected { background: #eaf5f2; }
 tbody tr.is-selected td:first-child { color: #0b625a; font-weight: 650; }
@@ -89,7 +89,10 @@ tbody tr.is-hidden td { color: #a1aaa7; }
 .map-object-icon svg { width: 24px; height: 24px; fill: currentColor; transform: rotate(45deg); }
 .map-object-icon.is-selected { width: 42px; height: 42px; border-width: 3px; background: #c77930; box-shadow: 0 0 0 3px #d59347, 0 3px 9px #152b2855; }
 .map-object-icon.is-selected svg { width: 27px; height: 27px; }
+.map-object-icon.is-unsaved { position: relative; outline: 2px dashed #c1842d; outline-offset: 3px; }
+.unsaved-map-badge { position: absolute; top: -4px; right: -4px; width: 9px; height: 9px; border: 1.5px solid #fff; border-radius: 50%; background: #c1842d; }
 .selected-feature { filter: drop-shadow(0 0 4px #bd793a); }
+.unsaved-feature { stroke-dasharray: 6 6; }
 .fit-all-control { position: absolute; z-index: 800; top: 12px; right: 12px; width: 36px; height: 36px; display: grid; place-items: center; padding: 7px; border: 1px solid #dfe7e4; border-radius: 7px; color: #294640; background: #fff; box-shadow: 0 1px 5px #18352b24; cursor: pointer; }
 .fit-all-control:hover { color: var(--accent); background: #f3faf7; }
 .fit-all-control svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }

@@ -196,6 +196,16 @@ export function ShapeDrawing(props: ShapeDrawingProps) {
         suppressClickRef.current = false;
         return;
       }
+      if (event.layer) return;
+      const target = event.originalEvent.target;
+      if (target instanceof Element) {
+        const feature = target.closest<HTMLElement>("[data-feature-kind][data-feature-id]");
+        if (feature?.dataset.featureKind && feature.dataset.featureId) {
+          propsRef.current.onSelect({ kind: feature.dataset.featureKind as "object" | "polygon", id: feature.dataset.featureId });
+          return;
+        }
+        if (target.closest(".leaflet-interactive, .leaflet-marker-icon")) return;
+      }
       const current = propsRef.current;
       const point: LeafletPosition = [event.latlng.lat, event.latlng.lng];
       if (current.shape === "Polygon") {
