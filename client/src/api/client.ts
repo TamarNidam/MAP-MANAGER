@@ -1,0 +1,57 @@
+import type {
+  CreateMapObjectRequest,
+  CreatePolygonRequest,
+  DeleteResultDto,
+  LayerDto,
+  MapObjectDto,
+  ObjectTypeDto,
+  PolygonDto,
+  ProblemDetails,
+} from "./types";
+
+const baseUrl = (import.meta.env.VITE_API_URL || "http://localhost:5080").replace(/\/$/, "");
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers },
+  });
+
+  if (!response.ok) {
+    let problem: ProblemDetails = {};
+    try {
+      problem = (await response.json()) as ProblemDetails;
+    } catch {
+      problem = {};
+    }
+    const message = [problem.title, problem.detail].filter(Boolean).join(": ") || response.statusText;
+    throw new ApiError(message, response.status);
+  }
+
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
+}
+
+export const api = {
+  getObjectTypes: () => request<ObjectTypeDto[]>("/api/object-types"),
+  getLayers: () => request<LayerDto[]>("/api/layers"),
+  getObjects: () => request<MapObjectDto[]>("/api/objects?limit=1000"),
+  getPolygons: () => request<PolygonDto[]>("/api/polygons?limit=1000"),
+  createObjects: (items: CreateMapObjectRequest[]) =>
+    request<MapObjectDto[]>("/api/objects", { method: "POST", body: JSON.stringify({ items }) }),
+  createPolygons: (items: CreatePolygonRequest[]) =>
+    request<PolygonDto[]>("/api/polygons", { method: "POST", body: JSON.stringify({ items }) }),
+  deleteObject: (id: string) => request<void>(`/api/objects/${id}`, { method: "DELETE" }),
+  deletePolygon: (id: string) => request<void>(`/api/polygons/${id}`, { method: "DELETE" }),
+  deleteAllPolygons: () => request<DeleteResultDto>("/api/polygons", { method: "DELETE" }),
+};

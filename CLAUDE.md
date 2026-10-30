@@ -7,11 +7,11 @@ Take-home interview task: a client/server app for managing polygons and objects 
 - Server: ASP.NET Core Web API targeting **`net8.0`**. The installed SDK is 9.0.320 (it builds `net8.0`). Do not target a newer framework.
 - MongoDB 8 (Docker), `MongoDB.Driver`, GeoJSON with a `2dsphere` index. Swagger in Development only.
 - Tests: xUnit, plus `Microsoft.AspNetCore.Mvc.Testing` for HTTP tests.
-- Client (later): React + TypeScript + Vite, Leaflet + react-leaflet + Leaflet-Geoman, TanStack Query.
+- Client: React + TypeScript + Vite, Leaflet + react-leaflet + Leaflet-Geoman, TanStack Query.
 
 ## Layout
 `server/src/MapManager.Api/`: `Controllers`, `Services`, `Repositories`, `Mapping`, `Dtos`, `Models`, `Validation`, `Errors`, `Infrastructure`, `Configuration`.
-`server/tests/MapManager.Api.Tests/`: unit and HTTP tests with in-memory fakes (no MongoDB). `client/`: not started.
+`server/tests/MapManager.Api.Tests/`: unit and HTTP tests with in-memory fakes (no MongoDB). `client/`: Vite app with `api/`, `components/`, `hooks/`, `map/`, and `types/`.
 
 ## Commands
 - Database: `docker compose up -d` (repo root)
@@ -38,7 +38,7 @@ Take-home interview task: a client/server app for managing polygons and objects 
 
 ## API
 Done: `GET /api/object-types`; `GET, POST /api/layers`; `PUT, DELETE /api/layers/{id}`; `POST, GET /api/objects`; `GET, PUT, DELETE /api/objects/{id}`; `POST, GET, DELETE /api/polygons` (DELETE deletes all polygons, returns `{ deletedCount }`); `GET, PUT, DELETE /api/polygons/{id}`.
-Next: `GET /api/map-data` with `type, creator, createdWithinDays, within, q, layers, bbox, limit, cursor` -> `{ items, nextCursor }`.
+Next: `GET /api/map-data` with `type, creator, createdWithinDays, within, q, layers, bbox, limit, cursor` -> `{ items, nextCursor }`. Phase 3 currently reads the existing object and polygon list endpoints.
 
 ## Behavior decisions
 - Cursor pagination, sorted by `createdAt` desc then `_id` desc. Never `skip`.
@@ -56,4 +56,4 @@ Mongo bound to localhost; only the marked dev credentials in source. Bound all i
 - Keep the README accurate. Add tests for important behavior only.
 
 ## Phases
-0 Setup: done. 1 Server core: done. **2 `/api/map-data`: next.** 3 Client skeleton. 4 Panels (table, filters, layers, editing, Duplicate). 5 Docker for API and client, polish. 6 Aggregations.
+0 Setup: done. 1 Server core: done. 2 `/api/map-data`: next. **3 Client vertical slice and drawing UX (Phase 3c): done.** 4 Panels (filters, layers, editing, Duplicate): not started. 5 Docker for API and client, polish. 6 Aggregations.

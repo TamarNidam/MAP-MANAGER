@@ -1,16 +1,18 @@
 # Map Manager
 
 Client/server application for managing polygons and objects on an interactive map.
-Server: ASP.NET Core Web API (`net8.0`). Database: MongoDB. Client: React + Leaflet (later phase).
+Server: ASP.NET Core Web API (`net8.0`). Database: MongoDB. Client: React, TypeScript, Vite, and Leaflet.
 
 ## Run
 
-Prerequisites: .NET SDK 8 or newer, Docker Desktop.
+Prerequisites: .NET SDK 8 or newer, Docker Desktop, Node.js 20 or newer.
 
 1. Start MongoDB (repository root): `docker compose up -d`
 2. Run the API (`server/src/MapManager.Api`): `dotnet run`. On startup it creates its indexes and a **Default** layer.
-3. Open http://localhost:5080/swagger (API docs) or http://localhost:5080/health (should return `Healthy`).
-4. Run the tests (`server`): `dotnet test`. They do not need MongoDB.
+3. Run the client from `client`: `npm install`, then `npm run dev`.
+4. Open http://localhost:5173. The client uses `http://localhost:5080` by default; set `VITE_API_URL` to override the API base URL.
+5. Open http://localhost:5080/swagger (API docs) or http://localhost:5080/health (should return `Healthy`).
+6. Run the server tests (`server`): `dotnet test`. They do not need MongoDB.
 
 ## Configuration
 
