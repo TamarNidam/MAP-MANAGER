@@ -121,7 +121,11 @@ export function DetailsCard({ item, layers, onSaveChanges, onDelete, geometryMod
         </div>
       </div>
       <label className="details-field">Layer
-        <select value={fields.layerId} onChange={(event) => setFields({ ...fields, layerId: event.target.value })}>
+        <select value={fields.layerId} onChange={(event) => setFields({
+          ...fields,
+          layerId: event.target.value,
+          ...(item.kind === "object" ? { color: "" } : {}),
+        })}>
           {layers.map((layer) => <option key={layer.id} value={layer.id}>{layer.name}</option>)}
         </select>
       </label>

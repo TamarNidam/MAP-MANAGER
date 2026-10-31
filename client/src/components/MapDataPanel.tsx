@@ -1,4 +1,4 @@
-import type { MutableRefObject } from "react";
+import { useEffect, useRef, type MutableRefObject } from "react";
 import type { ObjectTypeDto, PolygonDto } from "../api/types";
 import type { Selection, TableItem } from "../types/map";
 import { useMapFilters } from "../hooks/useMapFilters";
@@ -32,9 +32,28 @@ type MapDataPanelProps = {
 
 export function MapDataPanel(props: MapDataPanelProps) {
   const { filters } = props;
+  const filtersAnchorRef = useRef<HTMLDivElement>(null);
   const filterNotice = filters.mapViewOnly
     ? "Showing only items that match the table filters and the current map view"
     : "Showing only items that match the table filters";
+
+  useEffect(() => {
+    if (!filters.filtersOpen) return;
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (event.target instanceof Node && !filtersAnchorRef.current?.contains(event.target)) {
+        filters.setFiltersOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") filters.setFiltersOpen(false);
+    };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [filters.filtersOpen, filters.setFiltersOpen]);
 
   return (
     <section className="panel data-panel">
@@ -47,46 +66,55 @@ export function MapDataPanel(props: MapDataPanelProps) {
           placeholder="Search map data"
           aria-label="Search map data"
         />
-        <button className="button button-secondary" aria-expanded={filters.filtersOpen} onClick={() => filters.setFiltersOpen((open) => !open)}>
-          Filters{filters.activeFilterCount ? ` (${filters.activeFilterCount})` : ""}
-        </button>
-        <button className={`button button-secondary map-only-toggle${filters.mapViewOnly ? " is-active" : ""}`} aria-pressed={filters.mapViewOnly} onClick={() => filters.setMapViewOnly(!filters.mapViewOnly)}>
-          Map view only
+        <div className="filter-anchor" ref={filtersAnchorRef}>
+          <button className="button button-secondary filters-toggle" aria-expanded={filters.filtersOpen} aria-haspopup="dialog" onClick={() => filters.setFiltersOpen(!filters.filtersOpen)}>
+            Filters{filters.activeFilterCount ? ` (${filters.activeFilterCount})` : ""}
+          </button>
+          {filters.filtersOpen && (
+            <div className="filter-panel" role="dialog" aria-label="Map data filters">
+              <label>Type
+                <select value={filters.type} onChange={(event) => filters.setType(event.target.value)}>
+                  <option value="all">All</option>
+                  <option value="polygon">Polygon</option>
+                  {props.objectTypes.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}
+                </select>
+              </label>
+              <label>Creator
+                <input value={filters.creator} onChange={(event) => filters.setCreator(event.target.value)} placeholder="Exact creator" />
+              </label>
+              <label>Created
+                <select value={filters.createdWithinDays ?? ""} onChange={(event) => filters.setCreatedWithinDays(event.target.value ? Number(event.target.value) : null)}>
+                  <option value="">Any time</option>
+                  <option value="7">Last 7 days</option>
+                  <option value="14">Last 14 days</option>
+                  <option value="30">Last 30 days</option>
+                </select>
+              </label>
+              <label>Inside polygon
+                <select value={filters.within} onChange={(event) => filters.setWithin(event.target.value)}>
+                  <option value="">Any</option>
+                  {props.polygonOptions.map((polygon) => <option key={polygon.id} value={polygon.id}>{polygon.name}</option>)}
+                </select>
+              </label>
+              <button className="filter-reset" onClick={filters.resetAll}>Reset all</button>
+            </div>
+          )}
+        </div>
+        <button
+          className={`button button-secondary map-only-toggle${filters.mapViewOnly ? " is-active" : ""}`}
+          type="button"
+          aria-label="Map view only"
+          aria-pressed={filters.mapViewOnly}
+          title="Map view only"
+          onClick={() => filters.setMapViewOnly(!filters.mapViewOnly)}
+        >
+          <MapViewOnlyIcon />
         </button>
       </div>
       {filters.isFiltered && (
         <div className="table-filter-warning" role="status">
           <span>{filterNotice} · {filters.activeFilterCount} active filters</span>
           <button onClick={filters.resetAll}>Reset</button>
-        </div>
-      )}
-      {filters.filtersOpen && (
-        <div className="filter-panel">
-          <label>Type
-            <select value={filters.type} onChange={(event) => filters.setType(event.target.value)}>
-              <option value="all">All</option>
-              <option value="polygon">Polygon</option>
-              {props.objectTypes.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}
-            </select>
-          </label>
-          <label>Creator
-            <input value={filters.creator} onChange={(event) => filters.setCreator(event.target.value)} placeholder="Exact creator" />
-          </label>
-          <label>Created
-            <select value={filters.createdWithinDays ?? ""} onChange={(event) => filters.setCreatedWithinDays(event.target.value ? Number(event.target.value) : null)}>
-              <option value="">Any time</option>
-              <option value="7">Last 7 days</option>
-              <option value="14">Last 14 days</option>
-              <option value="30">Last 30 days</option>
-            </select>
-          </label>
-          <label>Inside polygon
-            <select value={filters.within} onChange={(event) => filters.setWithin(event.target.value)}>
-              <option value="">Any</option>
-              {props.polygonOptions.map((polygon) => <option key={polygon.id} value={polygon.id}>{polygon.name}</option>)}
-            </select>
-          </label>
-          <button className="filter-reset" onClick={filters.resetAll}>Reset all</button>
         </div>
       )}
       {filters.chips.length > 0 && <div className="filter-chips">{filters.chips.map((chip) => (
@@ -153,6 +181,10 @@ export function MapDataPanel(props: MapDataPanelProps) {
       {props.loadAllStopped && <p className="load-cap">Stopped at 1000. Narrow the filters.</p>}
     </section>
   );
+}
+
+function MapViewOnlyIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3V6Z" /><path d="M9 3v15m6-12v15" /></svg>;
 }
 
 function EyeIcon() {

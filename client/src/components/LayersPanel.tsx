@@ -86,7 +86,7 @@ export function LayersPanel(props: LayersPanelProps) {
             return (
               <div className="layer-row" key={layer.id}>
                 <button className="layer-eye" aria-label={`${props.hiddenLayerIds.has(layer.id) ? "Show" : "Hide"} ${layer.name}`} onClick={() => props.onToggleVisibility(layer.id)}>
-                  {props.hiddenLayerIds.has(layer.id) ? "◉̸" : "◉"}
+                  {props.hiddenLayerIds.has(layer.id) ? <EyeOffIcon /> : <EyeIcon />}
                 </button>
                 <span className="layer-color-dot" style={{ backgroundColor: draft.color }} />
                 <input aria-label={`${layer.name} name`} value={draft.name} onChange={(event) => updateDraft(layer, { name: event.target.value })} />
@@ -110,4 +110,12 @@ export function LayersPanel(props: LayersPanelProps) {
       )}
     </section>
   );
+}
+
+function EyeIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" /><circle cx="12" cy="12" r="2.5" /></svg>;
+}
+
+function EyeOffIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.6 6.2A10.7 10.7 0 0 1 12 6c6.5 0 10 6 10 6a15 15 0 0 1-3.1 3.6M6.2 6.3C3.5 8 2 12 2 12s3.5 6 10 6a10 10 0 0 0 3-.5" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /></svg>;
 }

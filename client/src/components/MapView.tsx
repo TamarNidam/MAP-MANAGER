@@ -248,7 +248,7 @@ export function MapView(props: MapViewProps) {
 
           if (item.kind === "object") {
             const position = item.saved ? geoJsonToLeaflet(item.coordinates) : item.point;
-            const color = item.color ?? props.layerColors[item.layerId];
+            const color = item.color || props.layerColors[item.layerId] || "#0F6B63";
             const moving = props.geometryEdit?.kind === "object" && props.geometryEdit.id === item.id && props.geometryEdit.mode === "move";
             return (
               <Marker
