@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { api } from "./api/client";
 import type { MapDataPageDto } from "./api/types";
-import { ErrorMessage, ObjectsPanel, PolygonPanel } from "./components/Panels";
+import { DrawPanel } from "./components/DrawPanel";
 import { MapDataPanel } from "./components/MapDataPanel.tsx";
 import { DetailsCard, type EditableFields } from "./components/DetailsCard";
 import { LayersPanel } from "./components/LayersPanel";
@@ -73,10 +73,10 @@ export default function App() {
   const [activeLayerId, setActiveLayerId] = useState("");
   const [geometrySession, setGeometrySession] = useState<GeometrySession | null>(null);
   const [detailsResetToken, setDetailsResetToken] = useState(0);
-  const [selectedType, setSelectedType] = useState("marker");
   const [drawing, setDrawing] = useState<DrawingShape | null>(null);
-  const [addingObject, setAddingObject] = useState(false);
+  const [addingObject, setAddingObject] = useState<string | null>(null);
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  const [savingDrafts, setSavingDrafts] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [navigationRequest, setNavigationRequest] = useState<{ item: TableItem; requestId: number } | null>(null);
   const [loadAllActive, setLoadAllActive] = useState(false);
@@ -94,10 +94,6 @@ export default function App() {
   const savedItems = useMemo(() => mapData.data?.pages.flatMap((page) => page.items) ?? [], [mapData.data]);
 
   useEffect(() => {
-    if (types.length && !types.some((type) => type.id === selectedType)) setSelectedType(types[0].id);
-  }, [types, selectedType]);
-
-  useEffect(() => {
     if (activeLayerId && allLayers.some((layer) => layer.id === activeLayerId)) return;
     if (activeLayer) setActiveLayerId(activeLayer.id);
   }, [activeLayerId, activeLayer, allLayers]);
@@ -110,47 +106,6 @@ export default function App() {
   }, [filters.generation]);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.mapDataRoot });
-
-  const saveObjects = useMutation({
-    mutationFn: (items: PendingObject[]) => api.createObjects(items.map((item, index) => ({
-      name: item.name ?? `${types.find((type) => type.id === item.objectType)?.label ?? "Object"} ${savedItems.length + index + 1}`,
-      objectType: item.objectType,
-      layerId: item.layerId ?? activeLayer!.id,
-      createdBy: "Map Manager",
-      ...(item.color ? { color: item.color } : {}),
-      coordinates: leafletToGeoJson(item.point),
-    }))),
-    onSuccess: async (created, items) => {
-      await refresh();
-      if (selected?.kind === "object") {
-        const index = items.findIndex((item) => item.id === selected.id);
-        if (index >= 0 && created[index]) setSelected({ kind: "object", id: created[index].id });
-      }
-      setPendingObjects([]);
-    },
-    onError: (error) => setErrorMessage(error.message),
-  });
-
-  const savePolygons = useMutation({
-    mutationFn: (items: PendingPolygon[]) => api.createPolygons(items.map((item, index) => ({
-      name: item.name ?? `Polygon ${savedItems.length + index + 1}`,
-      layerId: item.layerId ?? activeLayer!.id,
-      createdBy: "Map Manager",
-      ...(item.color ? { color: item.color } : {}),
-      ...(item.shape ? { shape: item.shape } : {}),
-      ...(item.shape === "circle" && item.radiusMeters !== undefined ? { radiusMeters: item.radiusMeters } : {}),
-      coordinates: item.coordinates,
-    }))),
-    onSuccess: async (created, items) => {
-      await refresh();
-      if (selected?.kind === "polygon") {
-        const index = items.findIndex((item) => item.id === selected.id);
-        if (index >= 0 && created[index]) setSelected({ kind: "polygon", id: created[index].id });
-      }
-      setPendingPolygons([]);
-    },
-    onError: (error) => setErrorMessage(error.message),
-  });
 
   const deleteObject = useMutation({
     mutationFn: (id: string) => api.deleteObject(id),
@@ -169,6 +124,83 @@ export default function App() {
     onSuccess: async () => { setPendingPolygons([]); setSelected(null); setConfirmDeleteAll(false); await refresh(); },
     onError: (error) => setErrorMessage(error.message),
   });
+
+  const saveDrafts = async () => {
+    if (savingDrafts || (!pendingObjects.length && !pendingPolygons.length)) return;
+    setSavingDrafts(true);
+    setErrorMessage("");
+    const objectDrafts = pendingObjects;
+    const polygonDrafts = pendingPolygons;
+    const objectRequest = objectDrafts.length
+      ? api.createObjects(objectDrafts.map((item, index) => ({
+        name: item.name ?? `${types.find((type) => type.id === item.objectType)?.label ?? "Object"} ${savedItems.length + index + 1}`,
+        objectType: item.objectType,
+        layerId: item.layerId ?? activeLayer!.id,
+        createdBy: "Map Manager",
+        ...(item.color ? { color: item.color } : {}),
+        coordinates: leafletToGeoJson(item.point),
+      })))
+      : undefined;
+    const polygonRequest = polygonDrafts.length
+      ? api.createPolygons(polygonDrafts.map((item, index) => ({
+        name: item.name ?? `Polygon ${savedItems.length + index + 1}`,
+        layerId: item.layerId ?? activeLayer!.id,
+        createdBy: "Map Manager",
+        ...(item.color ? { color: item.color } : {}),
+        ...(item.shape ? { shape: item.shape } : {}),
+        ...(item.shape === "circle" && item.radiusMeters !== undefined ? { radiusMeters: item.radiusMeters } : {}),
+        coordinates: item.coordinates,
+      })))
+      : undefined;
+
+    try {
+      const [objectResult, polygonResult] = await Promise.all([
+        objectRequest
+          ? objectRequest.then((value) => ({ value }), (reason: unknown) => ({ reason }))
+          : Promise.resolve(undefined),
+        polygonRequest
+          ? polygonRequest.then((value) => ({ value }), (reason: unknown) => ({ reason }))
+          : Promise.resolve(undefined),
+      ]);
+      const failures: string[] = [];
+      let saved = false;
+
+      if (objectResult && "value" in objectResult) {
+        saved = true;
+        setPendingObjects((current) => current.filter((item) => !objectDrafts.some((draft) => draft.id === item.id)));
+        setSelected((current) => {
+          if (current?.kind !== "object") return current;
+          const index = objectDrafts.findIndex((item) => item.id === current.id);
+          return index >= 0 && objectResult.value[index] ? { kind: "object", id: objectResult.value[index].id } : current;
+        });
+      } else if (objectResult && "reason" in objectResult) {
+        failures.push(`Objects: ${objectResult.reason instanceof Error ? objectResult.reason.message : String(objectResult.reason)}`);
+      }
+
+      if (polygonResult && "value" in polygonResult) {
+        saved = true;
+        setPendingPolygons((current) => current.filter((item) => !polygonDrafts.some((draft) => draft.id === item.id)));
+        setSelected((current) => {
+          if (current?.kind !== "polygon") return current;
+          const index = polygonDrafts.findIndex((item) => item.id === current.id);
+          return index >= 0 && polygonResult.value[index] ? { kind: "polygon", id: polygonResult.value[index].id } : current;
+        });
+      } else if (polygonResult && "reason" in polygonResult) {
+        failures.push(`Polygons: ${polygonResult.reason instanceof Error ? polygonResult.reason.message : String(polygonResult.reason)}`);
+      }
+
+      if (saved) {
+        try {
+          await refresh();
+        } catch (error) {
+          failures.push(`Saved, but the list could not be refreshed: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      if (failures.length) setErrorMessage(failures.join(" "));
+    } finally {
+      setSavingDrafts(false);
+    }
+  };
 
   const createLayer = async (layer: { name: string; color: string }) => {
     const created = await api.createLayer(layer);
@@ -336,9 +368,15 @@ export default function App() {
   }, [items, selected]);
 
   const addPolygon = (shape: DrawingShape) => {
-    setAddingObject(false);
+    setAddingObject(null);
     setConfirmDeleteAll(false);
     setDrawing(shape);
+  };
+
+  const addObject = (type: string) => {
+    setDrawing(null);
+    setConfirmDeleteAll(false);
+    setAddingObject(type);
   };
 
   const onPolygonDrawn = (coordinates: number[][][], center: LeafletPosition) => {
@@ -362,9 +400,9 @@ export default function App() {
   const placeObject = (point: [number, number]) => {
     if (!addingObject) return;
     const id = crypto.randomUUID();
-    setPendingObjects((current) => [...current, { id, objectType: selectedType, point, layerId: activeLayer?.id }]);
+    setPendingObjects((current) => [...current, { id, objectType: addingObject, point, layerId: activeLayer?.id }]);
     setSelected({ kind: "object", id });
-    setAddingObject(false);
+    setAddingObject(null);
   };
 
   const deleteSelected = (kind: "object" | "polygon") => {
@@ -380,12 +418,7 @@ export default function App() {
     else deletePolygon.mutate(selected.id);
   };
 
-  const handlePolygonDelete = () => {
-    if (selected?.kind === "polygon") {
-      deleteSelected("polygon");
-      setConfirmDeleteAll(false);
-      return;
-    }
+  const handleDeleteAllPolygons = () => {
     if (!confirmDeleteAll) {
       setConfirmDeleteAll(true);
       return;
@@ -583,7 +616,7 @@ export default function App() {
           selected={selected}
           geometryEdit={geometrySession ? { kind: geometrySession.kind, id: geometrySession.id, mode: geometrySession.mode } : null}
           drawing={drawing}
-          addingObject={addingObject}
+          addingObject={Boolean(addingObject)}
           navigationRequest={navigationRequest}
           mapViewOnly={filters.mapViewOnly}
           onViewportChange={filters.reportViewport}
@@ -599,7 +632,7 @@ export default function App() {
           onPolygonDrawn={onPolygonDrawn}
           onCancelDrawing={() => {
             if (geometrySession) cancelGeometry();
-            else { setDrawing(null); setAddingObject(false); }
+            else { setDrawing(null); setAddingObject(null); }
           }}
         />
         {selectedWithGeometry && (
@@ -623,29 +656,21 @@ export default function App() {
         <div className="map-attribution">Tel Aviv, Israel <span>·</span> OpenStreetMap</div>
       </section>
       <aside className="sidebar">
-        <ErrorMessage message={error} onDismiss={() => setErrorMessage("")} />
         {!defaultLayer && !layers.isLoading && <div className="error-message" role="alert">Default layer was not found.</div>}
         {loading && <div className="loading-line">Loading map data…</div>}
-        <PolygonPanel
-          pendingCount={pendingPolygons.length}
-          hasPolygonSelection={selected?.kind === "polygon"}
-          hasAnyPolygons={(polygonOptions.data?.length ?? 0) > 0 || pendingPolygons.length > 0}
+        <DrawPanel
+          objectTypes={types}
+          pendingCount={unsavedCount}
+          hasSelection={Boolean(selected)}
           confirmDeleteAll={confirmDeleteAll}
-          actionsDisabled={geometrySession !== null}
-          onAdd={addPolygon}
-          onSave={() => savePolygons.mutate(pendingPolygons)}
-          onDelete={handlePolygonDelete}
-        />
-        <ObjectsPanel
-          types={types}
-          selectedType={selectedType}
-          pendingCount={pendingObjects.length}
-          hasObjectSelection={selected?.kind === "object"}
-          actionsDisabled={geometrySession !== null}
-          onChoose={setSelectedType}
-          onAdd={() => { setDrawing(null); setConfirmDeleteAll(false); setAddingObject(true); }}
-          onSave={() => saveObjects.mutate(pendingObjects)}
-          onDelete={() => deleteSelected("object")}
+          error={error}
+          onDismissError={() => setErrorMessage("")}
+          actionsDisabled={geometrySession !== null || savingDrafts || !activeLayer}
+          onAddPolygon={addPolygon}
+          onAddObject={addObject}
+          onSave={() => { void saveDrafts(); }}
+          onDeleteSelected={() => { if (selected) deleteSelected(selected.kind); }}
+          onDeleteAllPolygons={handleDeleteAllPolygons}
         />
         <MapDataPanel
           items={visibleItems}
@@ -683,7 +708,7 @@ export default function App() {
           onUpdate={updateLayer}
           onDelete={deleteLayer}
         />
-        {addingObject && <div className="mode-banner">Click the map to place a {types.find((type) => type.id === selectedType)?.label ?? "object"}<button onClick={() => setAddingObject(false)} aria-label="Cancel placement">×</button></div>}
+        {addingObject && <div className="mode-banner">Click the map to place a {types.find((type) => type.id === addingObject)?.label ?? "object"}<button onClick={() => setAddingObject(null)} aria-label="Cancel placement">×</button></div>}
         {drawing && <div className="mode-banner">{drawing === "Polygon" ? "Click vertices; double-click the final vertex or click the first point to close" : drawing === "Rectangle" ? "Click two opposite corners" : "Click the center, then set the radius"}<button onClick={() => setDrawing(null)} aria-label="Cancel drawing">×</button></div>}
       </aside>
     </main>
