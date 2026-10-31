@@ -26,20 +26,25 @@ Take-home interview task: a client/server app for managing polygons and objects 
 - Do not add packages without saying why.
 
 ## Data model
-- Collections `features` (objects and polygons) and `layers`.
-- Feature: `geometry` (Point or Polygon), `properties` (`kind`, `objectType`, `name`, `layerId`, `createdBy`, `color`, `shape`, `radiusMeters`), `createdAt`, `updatedAt`.
-- Optional properties: `color` is hex `#RRGGBB` (objects and polygons). `shape` is `polygon` (default), `rectangle` or `circle` (polygons only; objects reject it). `radiusMeters` is > 0 and only accepted when `shape` is `circle`. Features stored without them must still read fine.
-- Stored enum values are lowercase ids, the same as the API (`"object"`, `"polygon"`, `"jeep"`), through one BSON convention.
-- `layerId` is required and must refer to an existing layer. One default layer is seeded at startup; it cannot be deleted.
-- `center` (`{ lat, lon }`) is derived in `Mapping/` and never stored.
-- **GeoJSON order is `[lon, lat]`.** Leaflet uses `[lat, lon]`: convert in exactly one place on the client.
-- Polygons: closed rings, at least 4 points each, no self-intersection, at most 10 rings and 1000 points in total. Batches have 1-100 items.
-- `ObjectType`: Marker, Jeep, Truck, Helicopter, Drone, Tower (served by `GET /api/object-types`).
-- Indexes are created at startup (`MongoIndexInitializer`). Keep them in sync with the queries.
+- MongoDB collections are `features` and `layers`. A feature stores GeoJSON Point/Polygon geometry, lowercase `kind` and object type IDs, name, required existing `layerId`, `createdBy`, timestamps, and optional `color`, polygon `shape`, and circle `radiusMeters`.
+- `color` is `#RRGGBB`; shape is `polygon` (default), `rectangle`, or `circle`. Circle geometry is stored as a polygon. Older documents without optional fields remain readable.
+- GeoJSON coordinates are `[lon, lat]`; Leaflet coordinates are `[lat, lon]`. `center` is derived, never stored. The default layer is seeded and cannot be deleted.
+- Polygons have closed rings, no self-intersections, at most 10 rings/1000 positions; create batches contain 1-100 items. Mongo indexes are initialized at startup.
 
 ## API
-Done: `GET /api/object-types`; `GET, POST /api/layers`; `PUT, DELETE /api/layers/{id}`; `POST, GET /api/objects`; `GET, PUT, DELETE /api/objects/{id}`; `POST, GET, DELETE /api/polygons` (DELETE deletes all polygons, returns `{ deletedCount }`); `GET, PUT, DELETE /api/polygons/{id}`; `GET /api/map-data` with `type, creator, createdWithinDays, within, q, layers, bbox, limit, cursor` -> `{ items, nextCursor }` (items are the object and polygon DTOs with a `kind` discriminator).
-The Phase 3 client still reads the object and polygon list endpoints, not `/api/map-data`.
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/object-types` | List supported object types. |
+| GET, POST | `/api/layers` | List or create layers. |
+| PUT, DELETE | `/api/layers/{id}` | Update or delete a layer. |
+| GET, POST | `/api/objects` | List or batch-create objects. |
+| GET, PUT, DELETE | `/api/objects/{id}` | Read, replace, or delete an object. |
+| GET, POST | `/api/polygons` | List or batch-create polygons. |
+| GET, PUT, DELETE | `/api/polygons/{id}` | Read, replace, or delete a polygon. |
+| DELETE | `/api/polygons` | Delete all polygons; returns `{ deletedCount }`. |
+| GET | `/api/map-data` | Filter and cursor-page objects/polygons; returns `{ items, nextCursor }`. |
+
+`/api/map-data` accepts `type`, `creator`, `createdWithinDays`, `within`, `q`, `layers`, `bbox`, `limit`, and `cursor`. The client requests 50 items per page.
 
 ## Behavior decisions
 - Cursor pagination, sorted by `createdAt` desc then `_id` desc. Never `skip`.
@@ -48,6 +53,7 @@ The Phase 3 client still reads the object and polygon list endpoints, not `/api/
 - Unknown JSON fields on PUT are ignored. Hide/show and layer visibility are client-only state.
 - PUT replaces all editable fields: leaving out `color` or `radiusMeters` removes it, leaving out `shape` resets it to `polygon`.
 - "Objects inside a polygon" uses `$geoWithin` with the `2dsphere` index.
+- **One list, two views:** the client renders map and table from the same flattened `/api/map-data` pages and filters. Drafts are always shown first; no separate object list feeds the map. Map-view-only adds a padded viewport `bbox` to the query.
 
 ## Security
 Mongo bound to localhost; only the marked dev credentials in source. Bound all input. CORS allow-list from configuration. Before submitting, test the running API with **Strix** and fix what it finds.
@@ -58,4 +64,4 @@ Mongo bound to localhost; only the marked dev credentials in source. Bound all i
 - Keep the README accurate. Add tests for important behavior only.
 
 ## Phases
-0 Setup: done. 1 Server core: done. 2 `/api/map-data`: done. 2b Optional `color`, `shape`, `radiusMeters`: done. 3 Client vertical slice and drawing UX (Phase 3c): done. **4 Panels (filters, layers, editing, Duplicate): next.** 5 Docker for API and client, polish. 6 Aggregations.
+0 Setup, 1 Server core, 2 `/api/map-data`, 2b optional feature fields, and 3 Client vertical slice/drawing UX: done. **4a filtered table/staged loading: implemented; manual verification pending.** 4b editing, colors, layer UI, Duplicate: not started. 5 Docker/polish and 6 aggregations: not started.
