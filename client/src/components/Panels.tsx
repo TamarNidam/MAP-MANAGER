@@ -8,6 +8,7 @@ type PolygonPanelProps = {
   hasPolygonSelection: boolean;
   hasAnyPolygons: boolean;
   confirmDeleteAll: boolean;
+  actionsDisabled?: boolean;
   onAdd: (shape: DrawingShape) => void;
   onSave: () => void;
   onDelete: () => void;
@@ -22,11 +23,11 @@ export function PolygonPanel(props: PolygonPanelProps) {
       <div className="panel-heading"><span className="panel-symbol polygon-symbol" /> <h2>Polygon</h2></div>
       <div className="actions">
         <div className="shape-menu-anchor">
-          <button className="button button-primary" aria-haspopup="menu" aria-expanded={shapeMenuOpen} onClick={() => setShapeMenuOpen((open) => !open)}><span aria-hidden="true">＋</span> Add</button>
+          <button className="button button-primary" aria-haspopup="menu" aria-expanded={shapeMenuOpen} disabled={props.actionsDisabled} onClick={() => setShapeMenuOpen((open) => !open)}><span aria-hidden="true">＋</span> Add</button>
           {shapeMenuOpen && <div className="shape-menu" role="menu">{shapes.map((shape) => <button key={shape} role="menuitem" onClick={() => { props.onAdd(shape); setShapeMenuOpen(false); }}>{shape}</button>)}</div>}
         </div>
-        <button className="button button-secondary" onClick={props.onSave} disabled={!props.pendingCount}>Save{props.pendingCount > 0 ? ` (${props.pendingCount})` : ""}</button>
-        <button className="button button-danger" onClick={props.onDelete} disabled={!props.hasPolygonSelection && !props.hasAnyPolygons}>
+        <button className="button button-secondary" onClick={props.onSave} disabled={!props.pendingCount || props.actionsDisabled}>Save{props.pendingCount > 0 ? ` (${props.pendingCount})` : ""}</button>
+        <button className="button button-danger" onClick={props.onDelete} disabled={props.actionsDisabled || (!props.hasPolygonSelection && !props.hasAnyPolygons)}>
           {props.hasPolygonSelection ? "Delete" : props.confirmDeleteAll ? "Confirm delete all" : "Delete all"}
         </button>
       </div>
@@ -40,6 +41,7 @@ type ObjectsPanelProps = {
   selectedType: string;
   pendingCount: number;
   hasObjectSelection: boolean;
+  actionsDisabled?: boolean;
   onChoose: (type: string) => void;
   onAdd: () => void;
   onSave: () => void;
@@ -64,9 +66,9 @@ export function ObjectsPanel(props: ObjectsPanelProps) {
         ))}
       </div>
       <div className="actions">
-        <button className="button button-primary" onClick={props.onAdd} disabled={!props.types.length}><span aria-hidden="true">＋</span> Add</button>
-        <button className="button button-secondary" onClick={props.onSave} disabled={!props.pendingCount}>Save{props.pendingCount > 0 ? ` (${props.pendingCount})` : ""}</button>
-        <button className="button button-danger" onClick={props.onDelete} disabled={!props.hasObjectSelection}>Delete</button>
+        <button className="button button-primary" onClick={props.onAdd} disabled={!props.types.length || props.actionsDisabled}><span aria-hidden="true">＋</span> Add</button>
+        <button className="button button-secondary" onClick={props.onSave} disabled={!props.pendingCount || props.actionsDisabled}>Save{props.pendingCount > 0 ? ` (${props.pendingCount})` : ""}</button>
+        <button className="button button-danger" onClick={props.onDelete} disabled={!props.hasObjectSelection || props.actionsDisabled}>Delete</button>
       </div>
       <p className="panel-hint">{props.pendingCount ? `${props.pendingCount} unsaved object${props.pendingCount === 1 ? "" : "s"}` : "Choose a type, then place it on the map"}</p>
     </section>
@@ -82,4 +84,3 @@ export function ErrorMessage({ message, onDismiss }: { message: string; onDismis
     </div>
   );
 }
-

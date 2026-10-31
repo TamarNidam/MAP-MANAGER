@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { LayerDto, ObjectTypeDto } from "../api/types";
 import type { TableItem } from "../types/map";
 
@@ -18,6 +18,13 @@ type DetailsCardProps = {
   onSaveChanges: (item: TableItem, fields: EditableFields) => Promise<void>;
   onDuplicate: (item: TableItem) => void;
   onDelete: (item: TableItem) => Promise<void>;
+  geometryMode: "move" | "vertices" | "redraw" | null;
+  geometryPending: boolean;
+  geometrySessionActive: boolean;
+  resetToken: number;
+  onStartGeometry: (mode: "move" | "vertices" | "redraw") => void;
+  onStopGeometryMode: () => void;
+  onCancel: () => void;
 };
 
 const swatches = ["#0F6B63", "#2563EB", "#DC2626", "#D97706", "#7C3AED"];
@@ -42,14 +49,31 @@ function sameFields(left: EditableFields, right: EditableFields): boolean {
     && left.radiusMeters === right.radiusMeters;
 }
 
-export function DetailsCard({ item, layers, objectTypes, onSaveChanges, onDuplicate, onDelete }: DetailsCardProps) {
+export function DetailsCard({ item, layers, objectTypes, onSaveChanges, onDuplicate, onDelete, geometryMode, geometryPending, geometrySessionActive, resetToken, onStartGeometry, onStopGeometryMode, onCancel }: DetailsCardProps) {
   const [original, setOriginal] = useState(() => fieldsFor(item));
   const [fields, setFields] = useState(() => fieldsFor(item));
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  useEffect(() => {
+    const reset = fieldsFor(item);
+    setOriginal(reset);
+    setFields(reset);
+    setError("");
+  }, [resetToken]);
   const layerColor = layers.find((layer) => layer.id === fields.layerId)?.color ?? "#0F6B63";
-  const changed = !sameFields(fields, original);
+  const changed = !sameFields(fields, original) || geometryPending;
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || saving || deleting) return;
+      setFields(original);
+      setError("");
+      if (geometrySessionActive) onCancel();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [deleting, geometrySessionActive, onCancel, original, saving]);
 
   const save = async () => {
     setSaving(true);
@@ -108,6 +132,23 @@ export function DetailsCard({ item, layers, objectTypes, onSaveChanges, onDuplic
           </select>
         </label>
       )}
+      <div className="geometry-actions">
+        {item.kind === "object" ? (
+          <button className={`button button-secondary${geometryMode === "move" ? " is-active" : ""}`} disabled={geometryMode !== null && geometryMode !== "move"} onClick={() => geometryMode === "move" ? onStopGeometryMode() : onStartGeometry("move")}>
+            {geometryMode === "move" ? "Done moving" : "Move"}
+          </button>
+        ) : (
+          <>
+            <button className={`button button-secondary${geometryMode === "vertices" ? " is-active" : ""}`} disabled={geometryMode !== null && geometryMode !== "vertices"} onClick={() => geometryMode === "vertices" ? onStopGeometryMode() : onStartGeometry("vertices")}>
+              {geometryMode === "vertices" ? "Done editing vertices" : "Edit vertices"}
+            </button>
+            <button className="button button-secondary" disabled={geometryMode !== null && geometryMode !== "redraw"} onClick={() => onStartGeometry("redraw")}>
+              {geometryMode === "redraw" ? "Redraw on map…" : "Redraw"}
+            </button>
+          </>
+        )}
+        {geometryPending && <span className="geometry-pending">Geometry pending</span>}
+      </div>
       <dl className="details-readonly">
         <div><dt>Created by</dt><dd>{item.saved ? item.createdBy : "—"}</dd></div>
         <div><dt>Created</dt><dd>{item.saved ? new Date(item.createdAt).toLocaleString() : "Draft"}</dd></div>
@@ -117,9 +158,9 @@ export function DetailsCard({ item, layers, objectTypes, onSaveChanges, onDuplic
       {error && <div className="details-error" role="alert">{error}</div>}
       <div className="details-actions">
         <button className="button button-primary" disabled={!changed || saving || deleting} onClick={() => void save()}>{saving ? "Saving…" : "Save changes"}</button>
-        <button className="button button-secondary" disabled={!changed || saving || deleting} onClick={() => { setFields(original); setError(""); }}>Cancel</button>
-        <button className="button button-secondary" disabled={saving || deleting} onClick={() => onDuplicate(item)}>Duplicate</button>
-        <button className="button button-danger" disabled={saving || deleting} onClick={() => void remove()}>{deleting ? "Deleting…" : "Delete"}</button>
+        <button className="button button-secondary" disabled={(!changed && !geometryPending && !geometrySessionActive) || saving || deleting} onClick={() => { setFields(original); setError(""); onCancel(); }}>Cancel</button>
+        <button className="button button-secondary" disabled={geometrySessionActive || saving || deleting} onClick={() => onDuplicate(item)}>Duplicate</button>
+        <button className="button button-danger" disabled={geometrySessionActive || saving || deleting} onClick={() => void remove()}>{deleting ? "Deleting…" : "Delete"}</button>
       </div>
     </section>
   );

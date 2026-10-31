@@ -3,6 +3,7 @@ import type {
   CreatePolygonRequest,
   DeleteResultDto,
   LayerDto,
+  LayerRequest,
   MapDataPageDto,
   MapDataQuery,
   MapObjectDto,
@@ -58,6 +59,11 @@ export const api = {
   },
   getObjectTypes: () => request<ObjectTypeDto[]>("/api/object-types"),
   getLayers: () => request<LayerDto[]>("/api/layers"),
+  createLayer: (layer: LayerRequest) =>
+    request<LayerDto>("/api/layers", { method: "POST", body: JSON.stringify(layer) }),
+  updateLayer: (id: string, layer: LayerRequest) =>
+    request<LayerDto>(`/api/layers/${id}`, { method: "PUT", body: JSON.stringify(layer) }),
+  deleteLayer: (id: string) => request<void>(`/api/layers/${id}`, { method: "DELETE" }),
   getPolygons: () => request<PolygonDto[]>("/api/polygons?limit=1000"),
   createObjects: (items: CreateMapObjectRequest[]) =>
     request<MapObjectDto[]>("/api/objects", { method: "POST", body: JSON.stringify({ items }) }),

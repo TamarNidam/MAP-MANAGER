@@ -11,6 +11,8 @@ export type LayerDto = {
   updatedAt: string;
 };
 
+export type LayerRequest = { name: string; color: string };
+
 export type MapObjectDto = {
   id: string;
   name: string;

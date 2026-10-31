@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import { MapContainer, Marker, Polygon, TileLayer, useMap } from "react-leaflet";
 import type { DrawingShape, Selection, TableItem } from "../types/map";
-import { geoJsonPolygonToLeaflet, geoJsonToLeaflet, leafletBoundsToGeoJsonBbox, type LeafletPosition } from "../map/coords";
+import { geoJsonPolygonToLeaflet, geoJsonToLeaflet, leafletBoundsToGeoJsonBbox, leafletPolygonToGeoJson, type LeafletPosition } from "../map/coords";
 import { objectIcon } from "../map/ObjectMarker";
 import { ShapeDrawing } from "../map/ShapeDrawing";
 
@@ -13,8 +13,10 @@ const VIEW_STORAGE_KEY = "map-manager-view";
 type MapViewProps = {
   items: TableItem[];
   hidden: Set<string>;
+  hiddenLayerIds: Set<string>;
   layerColors: Record<string, string>;
   selected: Selection;
+  geometryEdit: { kind: "object" | "polygon"; id: string; mode: "move" | "vertices" | "redraw" | null } | null;
   drawing: DrawingShape | null;
   addingObject: boolean;
   navigationRequest: { item: TableItem; requestId: number } | null;
@@ -26,6 +28,8 @@ type MapViewProps = {
   activeFilterCount: number;
   onResetFilters: () => void;
   onSelect: (selection: Selection) => void;
+  onObjectMoveEnd: (id: string, point: LeafletPosition) => void;
+  onPolygonGeometryChange: (id: string, coordinates: number[][][]) => void;
   onObjectPlace: (point: [number, number]) => void;
   onPolygonDrawn: (coordinates: number[][][], center: LeafletPosition) => void;
   onCancelDrawing: () => void;
@@ -43,6 +47,77 @@ function readStoredView(): { center: LeafletPosition; zoom: number } {
   } catch {
     return { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
   }
+}
+
+type GeomanPolygon = L.Polygon & {
+  pm: {
+    enable: (options?: { allowSelfIntersection?: boolean }) => void;
+    disable: () => void;
+  };
+};
+
+function EditablePolygon({ item, selected, unsaved, color, editMode, onSelect, onGeometryChange }: {
+  item: Extract<TableItem, { kind: "polygon" }>;
+  selected: boolean;
+  unsaved: boolean;
+  color: string;
+  editMode: boolean;
+  onSelect: () => void;
+  onGeometryChange: (coordinates: number[][][]) => void;
+}) {
+  const [layer, setLayer] = useState<L.Polygon | null>(null);
+  const onGeometryChangeRef = useRef(onGeometryChange);
+  onGeometryChangeRef.current = onGeometryChange;
+  const setPolygonRef = useCallback((polygon: L.Polygon | null) => {
+    setLayer(polygon);
+    if (!polygon) return;
+    if (selected) polygon.bringToFront();
+    const path = polygon.getElement();
+    path?.setAttribute("data-feature-kind", "polygon");
+    path?.setAttribute("data-feature-id", item.id);
+  }, [item.id, selected]);
+
+  useEffect(() => {
+    if (!layer || !editMode) return;
+    const editable = layer as GeomanPolygon;
+    const updateGeometry = () => {
+      const rings = layer.getLatLngs() as L.LatLng[][];
+      onGeometryChangeRef.current(leafletPolygonToGeoJson(rings.map((ring) => ring.map(({ lat, lng }) => [lat, lng] as LeafletPosition))));
+    };
+    editable.pm.enable({ allowSelfIntersection: true });
+    layer.on("pm:edit", updateGeometry);
+    layer.on("pm:vertexadded", updateGeometry);
+    layer.on("pm:vertexremoved", updateGeometry);
+    return () => {
+      layer.off("pm:edit", updateGeometry);
+      layer.off("pm:vertexadded", updateGeometry);
+      layer.off("pm:vertexremoved", updateGeometry);
+      editable.pm.disable();
+    };
+  }, [layer, editMode]);
+
+  return (
+    <Polygon
+      positions={geoJsonPolygonToLeaflet(item.coordinates)}
+      ref={setPolygonRef}
+      pathOptions={{
+        color,
+        weight: selected ? 4 : 2,
+        dashArray: unsaved ? "6 6" : undefined,
+        fillColor: color,
+        fillOpacity: selected ? 0.38 : unsaved ? 0.2 : 0.16,
+        className: `${unsaved ? "unsaved-feature" : ""}${selected ? " selected-feature" : ""}`,
+      }}
+      eventHandlers={{
+        click: (event) => { L.DomEvent.stopPropagation(event.originalEvent); onSelect(); },
+        contextmenu: (event) => {
+          L.DomEvent.preventDefault(event.originalEvent);
+          L.DomEvent.stopPropagation(event.originalEvent);
+          onSelect();
+        },
+      }}
+    />
+  );
 }
 
 function PersistMapView() {
@@ -120,6 +195,7 @@ function FitAllControl({ props }: { props: MapViewProps }) {
     for (const item of props.items) {
       const selected = props.selected?.kind === item.kind && props.selected.id === item.id;
       if (props.hidden.has(item.id) && !selected) continue;
+      if (props.hiddenLayerIds.has(item.layerId) && !selected) continue;
       if (item.kind === "object") {
         bounds.extend(item.saved ? geoJsonToLeaflet(item.coordinates) : item.point);
       } else {
@@ -168,17 +244,24 @@ export function MapView(props: MapViewProps) {
         {props.items.map((item) => {
           const selected = props.selected?.kind === item.kind && props.selected.id === item.id;
           if (props.hidden.has(item.id) && !selected) return null;
+          if (props.hiddenLayerIds.has(item.layerId) && !selected) return null;
 
           if (item.kind === "object") {
             const position = item.saved ? geoJsonToLeaflet(item.coordinates) : item.point;
             const color = item.color ?? props.layerColors[item.layerId];
+            const moving = props.geometryEdit?.kind === "object" && props.geometryEdit.id === item.id && props.geometryEdit.mode === "move";
             return (
               <Marker
                 key={`${item.kind}:${item.id}`}
                 position={position}
                 icon={objectIcon(item.objectType, selected, !item.saved, item.id, color)}
+                draggable={moving}
                 eventHandlers={{
                   click: (event) => { L.DomEvent.stopPropagation(event.originalEvent); props.onSelect({ kind: "object", id: item.id }); },
+                  dragend: (event) => {
+                    const point = event.target.getLatLng();
+                    props.onObjectMoveEnd(item.id, [point.lat, point.lng]);
+                  },
                   contextmenu: (event) => {
                     L.DomEvent.preventDefault(event.originalEvent);
                     L.DomEvent.stopPropagation(event.originalEvent);
@@ -192,32 +275,15 @@ export function MapView(props: MapViewProps) {
           const unsaved = !item.saved;
           const color = item.color ?? props.layerColors[item.layerId] ?? "#0F6B63";
           return (
-            <Polygon
+            <EditablePolygon
               key={`${item.kind}:${item.id}`}
-              positions={geoJsonPolygonToLeaflet(item.coordinates)}
-              ref={(layer) => {
-                if (!layer) return;
-                if (selected) layer.bringToFront();
-                const path = layer.getElement();
-                path?.setAttribute("data-feature-kind", "polygon");
-                path?.setAttribute("data-feature-id", item.id);
-              }}
-              pathOptions={{
-                color,
-                weight: selected ? 4 : 2,
-                dashArray: unsaved ? "6 6" : undefined,
-                fillColor: color,
-                fillOpacity: selected ? 0.38 : unsaved ? 0.2 : 0.16,
-                className: `${unsaved ? "unsaved-feature" : ""}${selected ? " selected-feature" : ""}`,
-              }}
-              eventHandlers={{
-                click: (event) => { L.DomEvent.stopPropagation(event.originalEvent); props.onSelect({ kind: "polygon", id: item.id }); },
-                contextmenu: (event) => {
-                  L.DomEvent.preventDefault(event.originalEvent);
-                  L.DomEvent.stopPropagation(event.originalEvent);
-                  props.onSelect({ kind: "polygon", id: item.id });
-                },
-              }}
+              item={item}
+              selected={selected}
+              unsaved={unsaved}
+              color={color}
+              editMode={props.geometryEdit?.kind === "polygon" && props.geometryEdit.id === item.id && props.geometryEdit.mode === "vertices"}
+              onSelect={() => props.onSelect({ kind: "polygon", id: item.id })}
+              onGeometryChange={(coordinates) => props.onPolygonGeometryChange(item.id, coordinates)}
             />
           );
         })}

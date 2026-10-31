@@ -1,0 +1,113 @@
+import { useState } from "react";
+import type { LayerDto, LayerRequest } from "../api/types";
+
+type LayerDraft = LayerRequest;
+
+type LayersPanelProps = {
+  layers: LayerDto[];
+  activeLayerId: string;
+  hiddenLayerIds: Set<string>;
+  onSetActive: (id: string) => void;
+  onToggleVisibility: (id: string) => void;
+  onCreate: (layer: LayerRequest) => Promise<void>;
+  onUpdate: (id: string, layer: LayerRequest) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+};
+
+const defaultDraft = (): LayerDraft => ({ name: "", color: "#0F6B63" });
+
+export function LayersPanel(props: LayersPanelProps) {
+  const [expanded, setExpanded] = useState(false);
+  const [drafts, setDrafts] = useState<Record<string, LayerDraft>>({});
+  const [newLayer, setNewLayer] = useState(defaultDraft);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState("");
+  const visibleCount = props.layers.filter((layer) => !props.hiddenLayerIds.has(layer.id)).length;
+
+  const create = async () => {
+    setError("");
+    setBusy("new");
+    try {
+      await props.onCreate(newLayer);
+      setNewLayer(defaultDraft());
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : "Unable to create layer.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const save = async (id: string) => {
+    const draft = drafts[id];
+    if (!draft) return;
+    setError("");
+    setBusy(id);
+    try {
+      await props.onUpdate(id, draft);
+      setDrafts((current) => { const next = { ...current }; delete next[id]; return next; });
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : "Unable to update layer.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const remove = async (id: string) => {
+    setError("");
+    setBusy(id);
+    try {
+      await props.onDelete(id);
+      setDrafts((current) => { const next = { ...current }; delete next[id]; return next; });
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Unable to delete layer.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const updateDraft = (layer: LayerDto, update: Partial<LayerDraft>) => {
+    setDrafts((current) => ({
+      ...current,
+      [layer.id]: { name: current[layer.id]?.name ?? layer.name, color: current[layer.id]?.color ?? layer.color, ...update },
+    }));
+  };
+
+  return (
+    <section className="panel layers-panel">
+      <button className="layers-summary" aria-expanded={expanded} onClick={() => setExpanded((open) => !open)}>
+        <span>Layers</span><span>{visibleCount} of {props.layers.length} visible</span><span aria-hidden="true">{expanded ? "−" : "+"}</span>
+      </button>
+      {expanded && (
+        <div className="layers-content">
+          {props.layers.map((layer) => {
+            const draft = drafts[layer.id] ?? { name: layer.name, color: layer.color };
+            const changed = draft.name !== layer.name || draft.color !== layer.color;
+            const isBusy = busy === layer.id;
+            return (
+              <div className="layer-row" key={layer.id}>
+                <button className="layer-eye" aria-label={`${props.hiddenLayerIds.has(layer.id) ? "Show" : "Hide"} ${layer.name}`} onClick={() => props.onToggleVisibility(layer.id)}>
+                  {props.hiddenLayerIds.has(layer.id) ? "◉̸" : "◉"}
+                </button>
+                <span className="layer-color-dot" style={{ backgroundColor: draft.color }} />
+                <input aria-label={`${layer.name} name`} value={draft.name} onChange={(event) => updateDraft(layer, { name: event.target.value })} />
+                <input aria-label={`${layer.name} color`} type="color" value={draft.color} onChange={(event) => updateDraft(layer, { color: event.target.value.toUpperCase() })} />
+                <label className="active-layer-choice" title="Use for new items">
+                  <input type="radio" name="active-layer" checked={props.activeLayerId === layer.id} onChange={() => props.onSetActive(layer.id)} />
+                  <span className="visually-hidden">Active layer</span>
+                </label>
+                {changed && <button className="layer-action" disabled={isBusy} onClick={() => void save(layer.id)}>Save</button>}
+                {layer.name.trim().toLowerCase() !== "default" && !layer.isDefault && <button className="layer-action layer-delete" disabled={isBusy} onClick={() => void remove(layer.id)}>Delete</button>}
+              </div>
+            );
+          })}
+          <div className="new-layer-row">
+            <input aria-label="New layer name" placeholder="New layer name" value={newLayer.name} onChange={(event) => setNewLayer({ ...newLayer, name: event.target.value })} />
+            <input aria-label="New layer color" type="color" value={newLayer.color} onChange={(event) => setNewLayer({ ...newLayer, color: event.target.value.toUpperCase() })} />
+            <button className="button button-secondary" disabled={!newLayer.name.trim() || busy === "new"} onClick={() => void create()}>New layer</button>
+          </div>
+          {error && <div className="details-error" role="alert">{error}</div>}
+        </div>
+      )}
+    </section>
+  );
+}
