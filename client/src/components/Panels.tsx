@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { ObjectTypeDto } from "../api/types";
 import type { DrawingShape } from "../map/coords";
-import type { TableItem, Selection } from "../types/map";
 import { typeIconMarkup } from "../map/ObjectMarker";
 
 type PolygonPanelProps = {
@@ -74,65 +73,13 @@ export function ObjectsPanel(props: ObjectsPanelProps) {
   );
 }
 
-type MapDataPanelProps = {
-  items: TableItem[];
-  selected: Selection;
-  hidden: Set<string>;
-  rowRefs: React.MutableRefObject<Map<string, HTMLTableRowElement>>;
-  onSelect: (selection: Selection) => void;
-  onDoubleClick: (item: TableItem) => void;
-  onToggleVisibility: (key: string) => void;
-};
-
-export function MapDataPanel(props: MapDataPanelProps) {
+export function ErrorMessage({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  if (!message) return null;
   return (
-    <section className="panel data-panel">
-      <div className="panel-heading"><span className="panel-symbol data-symbol" /> <h2>Map Data</h2><span className="item-count">{props.items.length}</span></div>
-      <div className="table-wrap">
-        <table>
-          <thead><tr><th>Object</th><th>Lat</th><th>Lon</th><th><span className="visually-hidden">Visibility</span></th></tr></thead>
-          <tbody>
-            {props.items.map((item) => {
-              const key = `${item.kind}:${item.id}`;
-              const isSelected = props.selected?.kind === item.kind && props.selected.id === item.id;
-              const isHidden = props.hidden.has(key);
-              return (
-                <tr
-                  key={key}
-                  ref={(element) => { if (element) props.rowRefs.current.set(key, element); else props.rowRefs.current.delete(key); }}
-                  className={`${isSelected ? "is-selected" : ""}${isHidden ? " is-hidden" : ""}`}
-                  onClick={() => props.onSelect({ kind: item.kind, id: item.id })}
-                  onDoubleClick={() => props.onDoubleClick(item)}
-                  aria-selected={isSelected}
-                >
-                  <td>{item.label}{item.saved ? "" : <span className="unsaved-dot" title="Unsaved" />}</td>
-                  <td>{item.center.lat.toFixed(5)}</td>
-                  <td>{item.center.lon.toFixed(5)}</td>
-                  <td>
-                    <button className="eye-button" aria-label={`${isHidden ? "Show" : "Hide"} ${item.label}`} title={`${isHidden ? "Show" : "Hide"} on map`} onClick={(event) => { event.stopPropagation(); props.onToggleVisibility(key); }}>
-                      {isHidden ? <EyeOffIcon /> : <EyeIcon />}
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {!props.items.length && <p className="empty-state">No map items yet</p>}
-      </div>
-    </section>
+    <div className="error-message" role="alert">
+      <span>{message}</span>
+      <button aria-label="Dismiss error" onClick={onDismiss}>×</button>
+    </div>
   );
 }
 
-export function ErrorMessage({ message, onDismiss }: { message: string; onDismiss: () => void }) {
-  if (!message) return null;
-  return <div className="error-message" role="alert"><span>{message}</span><button aria-label="Dismiss error" onClick={onDismiss}>×</button></div>;
-}
-
-function EyeIcon() {
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" /><circle cx="12" cy="12" r="2.5" /></svg>;
-}
-
-function EyeOffIcon() {
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.6 6.2A10.7 10.7 0 0 1 12 6c6.5 0 10 6 10 6a15 15 0 0 1-3.1 3.6M6.2 6.3C3.5 8 2 12 2 12s3.5 6 10 6a10 10 0 0 0 3-.5" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /></svg>;
-}

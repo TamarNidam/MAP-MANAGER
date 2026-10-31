@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import { MapContainer, Marker, Polygon, TileLayer, useMap } from "react-leaflet";
-import type { GeoPointDto, MapObjectDto, PolygonDto } from "../api/types";
-import type { DrawingShape, PendingObject, PendingPolygon, Selection } from "../types/map";
-import { geoJsonPolygonToLeaflet, geoJsonToLeaflet, type LeafletPosition } from "../map/coords";
+import type { DrawingShape, Selection, TableItem } from "../types/map";
+import { geoJsonPolygonToLeaflet, geoJsonToLeaflet, leafletBoundsToGeoJsonBbox, type LeafletPosition } from "../map/coords";
 import { objectIcon } from "../map/ObjectMarker";
 import { ShapeDrawing } from "../map/ShapeDrawing";
 
@@ -12,16 +11,19 @@ const DEFAULT_ZOOM = 12;
 const VIEW_STORAGE_KEY = "map-manager-view";
 
 type MapViewProps = {
-  objects: MapObjectDto[];
-  polygons: PolygonDto[];
-  pendingObjects: PendingObject[];
-  pendingPolygons: PendingPolygon[];
+  items: TableItem[];
   hidden: Set<string>;
   selected: Selection;
   drawing: DrawingShape | null;
   addingObject: boolean;
-  selectedObjectType: string;
-  navigationRequest: { kind: "object" | "polygon"; id: string; center: GeoPointDto; requestId: number } | null;
+  navigationRequest: { item: TableItem; requestId: number } | null;
+  mapViewOnly: boolean;
+  onViewportChange: (bbox: [number, number, number, number], zoom: number) => void;
+  loadedCount: number;
+  moreAvailable: boolean;
+  filterNotice: string;
+  activeFilterCount: number;
+  onResetFilters: () => void;
   onSelect: (selection: Selection) => void;
   onObjectPlace: (point: [number, number]) => void;
   onPolygonDrawn: (coordinates: number[][][], center: LeafletPosition) => void;
@@ -74,18 +76,37 @@ function NavigateToItem({ props }: { props: MapViewProps }) {
 
   useEffect(() => {
     if (!request) return;
-    if (request.kind === "object") {
-      map.flyTo([request.center.lat, request.center.lon], Math.max(15, map.getZoom()));
+    if (request.item.kind === "object") {
+      map.flyTo([request.item.center.lat, request.item.center.lon], Math.max(15, map.getZoom()));
       return;
     }
 
-    const coordinates = props.polygons.find((polygon) => polygon.id === request.id)?.coordinates
-      ?? props.pendingPolygons.find((polygon) => polygon.id === request.id)?.coordinates;
-    if (!coordinates) return;
     const bounds = L.latLngBounds([]);
-    geoJsonPolygonToLeaflet(coordinates).flat().forEach((point) => bounds.extend(point));
+    geoJsonPolygonToLeaflet(request.item.coordinates).flat().forEach((point) => bounds.extend(point));
     if (bounds.isValid()) map.fitBounds(bounds, { padding: [36, 36], maxZoom: 17 });
   }, [map, request?.requestId]);
+
+  return null;
+}
+
+function ViewportReporter({ props }: { props: MapViewProps }) {
+  const map = useMap();
+  const onChange = useRef(props.onViewportChange);
+  onChange.current = props.onViewportChange;
+
+  useEffect(() => {
+    const report = () => {
+      const bounds = map.getBounds();
+      onChange.current(leafletBoundsToGeoJsonBbox(bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()), map.getZoom());
+    };
+    report();
+    map.on("moveend", report);
+    map.on("zoomend", report);
+    return () => {
+      map.off("moveend", report);
+      map.off("zoomend", report);
+    };
+  }, [map, props.mapViewOnly]);
 
   return null;
 }
@@ -95,20 +116,14 @@ function FitAllControl({ props }: { props: MapViewProps }) {
 
   const fitAll = () => {
     const bounds = L.latLngBounds([]);
-    const isVisible = (kind: "object" | "polygon", id: string) =>
-      !props.hidden.has(`${kind}:${id}`) || (props.selected?.kind === kind && props.selected.id === id);
-
-    for (const object of props.objects) {
-      if (isVisible("object", object.id)) bounds.extend(geoJsonToLeaflet(object.coordinates));
-    }
-    for (const object of props.pendingObjects) {
-      if (isVisible("object", object.id)) bounds.extend(object.point);
-    }
-    for (const polygon of props.polygons) {
-      if (isVisible("polygon", polygon.id)) geoJsonPolygonToLeaflet(polygon.coordinates).flat().forEach((point) => bounds.extend(point));
-    }
-    for (const polygon of props.pendingPolygons) {
-      if (isVisible("polygon", polygon.id)) geoJsonPolygonToLeaflet(polygon.coordinates).flat().forEach((point) => bounds.extend(point));
+    for (const item of props.items) {
+      const selected = props.selected?.kind === item.kind && props.selected.id === item.id;
+      if (props.hidden.has(item.id) && !selected) continue;
+      if (item.kind === "object") {
+        bounds.extend(item.saved ? geoJsonToLeaflet(item.coordinates) : item.point);
+      } else {
+        geoJsonPolygonToLeaflet(item.coordinates).flat().forEach((point) => bounds.extend(point));
+      }
     }
 
     if (!bounds.isValid()) {
@@ -131,89 +146,73 @@ export function MapView(props: MapViewProps) {
   const [view] = useState(readStoredView);
 
   return (
-    <MapContainer center={view.center} zoom={view.zoom} scrollWheelZoom className="map-canvas">
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <PersistMapView />
-      <FitAllControl props={props} />
-      <NavigateToItem props={props} />
-      <ShapeDrawing
-        shape={props.drawing}
-        addingObject={props.addingObject}
-        onShapeComplete={props.onPolygonDrawn}
-        onObjectPlace={props.onObjectPlace}
-        onSelect={props.onSelect}
-        onCancel={props.onCancelDrawing}
-      />
-      {props.objects.map((object) => {
-        const key = `object:${object.id}`;
-        const selected = props.selected?.kind === "object" && props.selected.id === object.id;
-        if (props.hidden.has(key) && !selected) return null;
-        return (
-          <Marker
-            key={object.id}
-            position={geoJsonToLeaflet(object.coordinates)}
-            icon={objectIcon(object.objectType, selected, false, object.id)}
-            eventHandlers={{ click: (event) => { L.DomEvent.stopPropagation(event.originalEvent); props.onSelect({ kind: "object", id: object.id }); } }}
-          />
-        );
-      })}
-      {props.pendingObjects.map((object) => {
-        const key = `object:${object.id}`;
-        const selected = props.selected?.kind === "object" && props.selected.id === object.id;
-        if (props.hidden.has(key) && !selected) return null;
-        return (
-          <Marker
-            key={object.id}
-            position={object.point}
-            icon={objectIcon(object.objectType, selected, true, object.id)}
-            eventHandlers={{ click: (event) => { L.DomEvent.stopPropagation(event.originalEvent); props.onSelect({ kind: "object", id: object.id }); } }}
-          />
-        );
-      })}
-      {props.polygons.map((polygon) => {
-        const key = `polygon:${polygon.id}`;
-        const selected = props.selected?.kind === "polygon" && props.selected.id === polygon.id;
-        if (props.hidden.has(key) && !selected) return null;
-        return (
-          <Polygon
-            key={polygon.id}
-            positions={geoJsonPolygonToLeaflet(polygon.coordinates)}
-            ref={(layer) => {
-              if (!layer) return;
-              if (selected) layer.bringToFront();
-              const path = layer.getElement();
-              path?.setAttribute("data-feature-kind", "polygon");
-              path?.setAttribute("data-feature-id", polygon.id);
-            }}
-            pathOptions={{ color: selected ? "#B7792D" : "#0F6B63", weight: selected ? 4 : 2, fillOpacity: selected ? 0.38 : 0.16, className: selected ? "selected-feature" : "" }}
-            eventHandlers={{ click: (event) => { L.DomEvent.stopPropagation(event.originalEvent); props.onSelect({ kind: "polygon", id: polygon.id }); } }}
-          />
-        );
-      })}
-      {props.pendingPolygons.map((polygon) => {
-        const key = `polygon:${polygon.id}`;
-        const selected = props.selected?.kind === "polygon" && props.selected.id === polygon.id;
-        if (props.hidden.has(key) && !selected) return null;
-        return (
-          <Polygon
-            key={polygon.id}
-            positions={geoJsonPolygonToLeaflet(polygon.coordinates)}
-            ref={(layer) => {
-              if (!layer) return;
-              if (selected) layer.bringToFront();
-              const path = layer.getElement();
-              path?.setAttribute("data-feature-kind", "polygon");
-              path?.setAttribute("data-feature-id", polygon.id);
-            }}
-            pathOptions={{ color: "#C1842D", weight: selected ? 4 : 2, dashArray: "6 6", fillColor: selected ? "#E6BD76" : "#F4E7CE", fillOpacity: selected ? 0.38 : 0.2, className: selected ? "selected-feature unsaved-feature" : "unsaved-feature" }}
-            eventHandlers={{ click: (event) => { L.DomEvent.stopPropagation(event.originalEvent); props.onSelect({ kind: "polygon", id: polygon.id }); } }}
-          />
-        );
-      })}
-    </MapContainer>
+    <>
+      <MapContainer center={view.center} zoom={view.zoom} scrollWheelZoom className="map-canvas">
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        <PersistMapView />
+        <ViewportReporter props={props} />
+        <FitAllControl props={props} />
+        <NavigateToItem props={props} />
+        <ShapeDrawing
+          shape={props.drawing}
+          addingObject={props.addingObject}
+          onShapeComplete={props.onPolygonDrawn}
+          onObjectPlace={props.onObjectPlace}
+          onSelect={props.onSelect}
+          onCancel={props.onCancelDrawing}
+        />
+        {props.items.map((item) => {
+          const selected = props.selected?.kind === item.kind && props.selected.id === item.id;
+          if (props.hidden.has(item.id) && !selected) return null;
+
+          if (item.kind === "object") {
+            const position = item.saved ? geoJsonToLeaflet(item.coordinates) : item.point;
+            return (
+              <Marker
+                key={`${item.kind}:${item.id}`}
+                position={position}
+                icon={objectIcon(item.objectType, selected, !item.saved, item.id)}
+                eventHandlers={{ click: (event) => { L.DomEvent.stopPropagation(event.originalEvent); props.onSelect({ kind: "object", id: item.id }); } }}
+              />
+            );
+          }
+
+          const unsaved = !item.saved;
+          return (
+            <Polygon
+              key={`${item.kind}:${item.id}`}
+              positions={geoJsonPolygonToLeaflet(item.coordinates)}
+              ref={(layer) => {
+                if (!layer) return;
+                if (selected) layer.bringToFront();
+                const path = layer.getElement();
+                path?.setAttribute("data-feature-kind", "polygon");
+                path?.setAttribute("data-feature-id", item.id);
+              }}
+              pathOptions={{
+                color: unsaved ? "#C1842D" : selected ? "#B7792D" : "#0F6B63",
+                weight: selected ? 4 : 2,
+                dashArray: unsaved ? "6 6" : undefined,
+                fillColor: unsaved ? "#F4E7CE" : selected ? "#E6BD76" : "#0F6B63",
+                fillOpacity: selected ? 0.38 : unsaved ? 0.2 : 0.16,
+                className: `${unsaved ? "unsaved-feature" : ""}${selected ? " selected-feature" : ""}`,
+              }}
+              eventHandlers={{ click: (event) => { L.DomEvent.stopPropagation(event.originalEvent); props.onSelect({ kind: "polygon", id: item.id }); } }}
+            />
+          );
+        })}
+      </MapContainer>
+      {props.filterNotice && (
+        <div className="map-filter-banner" role="status">
+          <span>{props.filterNotice} · {props.activeFilterCount} active filters</span>
+          <button onClick={props.onResetFilters}>Reset</button>
+        </div>
+      )}
+      <div className="map-data-status">Loaded {props.loadedCount}{props.moreAvailable ? " · more available" : ""}</div>
+    </>
   );
 }
 

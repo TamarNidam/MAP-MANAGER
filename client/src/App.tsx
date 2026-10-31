@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { api } from "./api/client";
-import type { MapObjectDto, PolygonDto } from "./api/types";
-import { ErrorMessage, MapDataPanel, ObjectsPanel, PolygonPanel } from "./components/Panels";
+import type { MapDataPageDto } from "./api/types";
+import { ErrorMessage, ObjectsPanel, PolygonPanel } from "./components/Panels";
+import { MapDataPanel } from "./components/MapDataPanel.tsx";
 import { MapView } from "./components/MapView";
+import { queryKeys } from "./api/queryKeys";
 import { leafletToGeoJson, type DrawingShape, type LeafletPosition } from "./map/coords";
 import { useMapQueries } from "./hooks/useMapQueries";
 import type { PendingObject, PendingPolygon, Selection, TableItem } from "./types/map";
+import { useMapFilters } from "./hooks/useMapFilters";
 
 export default function App() {
   const queryClient = useQueryClient();
-  const { objects, polygons, layers, objectTypes } = useMapQueries();
+  const filters = useMapFilters();
+  const { mapData, layers, objectTypes, polygonOptions } = useMapQueries(filters.mapDataQuery, filters.generation);
   const [pendingObjects, setPendingObjects] = useState<PendingObject[]>([]);
   const [pendingPolygons, setPendingPolygons] = useState<PendingPolygon[]>([]);
   const [selected, setSelected] = useState<Selection>(null);
@@ -20,64 +24,64 @@ export default function App() {
   const [addingObject, setAddingObject] = useState(false);
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [navigationRequest, setNavigationRequest] = useState<{ kind: "object" | "polygon"; id: string; center: TableItem["center"]; requestId: number } | null>(null);
+  const [navigationRequest, setNavigationRequest] = useState<{ item: TableItem; requestId: number } | null>(null);
+  const [loadAllActive, setLoadAllActive] = useState(false);
+  const [loadAllProgress, setLoadAllProgress] = useState("");
+  const [loadAllStopped, setLoadAllStopped] = useState(false);
   const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
   const navigationRequestId = useRef(0);
+  const loadAllCancelled = useRef(false);
 
   const defaultLayer = layers.data?.find((layer) => layer.name.toLowerCase() === "default");
-  const savedObjects = objects.data ?? [];
-  const savedPolygons = polygons.data ?? [];
   const types = objectTypes.data ?? [];
+  const savedItems = useMemo(() => mapData.data?.pages.flatMap((page) => page.items) ?? [], [mapData.data]);
 
   useEffect(() => {
     if (types.length && !types.some((type) => type.id === selectedType)) setSelectedType(types[0].id);
   }, [types, selectedType]);
 
   useEffect(() => {
-    if (!selected) return;
-    rowRefs.current.get(`${selected.kind}:${selected.id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [selected]);
+    loadAllCancelled.current = true;
+    setLoadAllActive(false);
+    setLoadAllProgress("");
+    setLoadAllStopped(false);
+  }, [filters.generation]);
 
-  const refresh = () => Promise.all([
-    queryClient.invalidateQueries({ queryKey: ["objects"] }),
-    queryClient.invalidateQueries({ queryKey: ["polygons"] }),
-  ]);
+  const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.mapDataRoot });
 
   const saveObjects = useMutation({
     mutationFn: (items: PendingObject[]) => api.createObjects(items.map((item, index) => ({
-      name: `${types.find((type) => type.id === item.objectType)?.label ?? "Object"} ${savedObjects.length + index + 1}`,
+      name: `${types.find((type) => type.id === item.objectType)?.label ?? "Object"} ${savedItems.length + index + 1}`,
       objectType: item.objectType,
       layerId: defaultLayer!.id,
       createdBy: "Map Manager",
       coordinates: leafletToGeoJson(item.point),
     }))),
     onSuccess: async (created, items) => {
-      queryClient.setQueryData<MapObjectDto[]>(["objects"], (current) => [...created, ...(current ?? [])]);
+      await refresh();
       if (selected?.kind === "object") {
         const index = items.findIndex((item) => item.id === selected.id);
         if (index >= 0 && created[index]) setSelected({ kind: "object", id: created[index].id });
       }
       setPendingObjects([]);
-      await refresh();
     },
     onError: (error) => setErrorMessage(error.message),
   });
 
   const savePolygons = useMutation({
     mutationFn: (items: PendingPolygon[]) => api.createPolygons(items.map((item, index) => ({
-      name: `Polygon ${savedPolygons.length + index + 1}`,
+      name: `Polygon ${savedItems.length + index + 1}`,
       layerId: defaultLayer!.id,
       createdBy: "Map Manager",
       coordinates: item.coordinates,
     }))),
     onSuccess: async (created, items) => {
-      queryClient.setQueryData<PolygonDto[]>(["polygons"], (current) => [...created, ...(current ?? [])]);
+      await refresh();
       if (selected?.kind === "polygon") {
         const index = items.findIndex((item) => item.id === selected.id);
         if (index >= 0 && created[index]) setSelected({ kind: "polygon", id: created[index].id });
       }
       setPendingPolygons([]);
-      await refresh();
     },
     onError: (error) => setErrorMessage(error.message),
   });
@@ -101,28 +105,27 @@ export default function App() {
   });
 
   const items = useMemo(() => {
-    const result: TableItem[] = [
-      ...savedObjects.map((item: MapObjectDto): TableItem => ({
-        id: item.id, kind: "object", label: item.name, center: item.center, createdAt: item.createdAt, saved: true,
-      })),
-      ...savedPolygons.map((item: PolygonDto): TableItem => ({
-        id: item.id, kind: "polygon", label: item.name, center: item.center, createdAt: item.createdAt, saved: true,
-      })),
-      ...pendingObjects.map((item, index): TableItem => ({
-        id: item.id, kind: "object", label: `${types.find((type) => type.id === item.objectType)?.label ?? "Object"} ${savedObjects.length + index + 1}`,
-        center: { lat: item.point[0], lon: item.point[1] }, createdAt: "", saved: false,
-      })),
-      ...pendingPolygons.map((item, index): TableItem => ({
-        id: item.id, kind: "polygon", label: `Polygon ${savedPolygons.length + index + 1}`,
-        center: { lat: item.center[0], lon: item.center[1] }, createdAt: "", saved: false,
-      })),
+    const drafts: TableItem[] = [
+      ...pendingObjects.map((item, index): TableItem => {
+        const label = `${types.find((type) => type.id === item.objectType)?.label ?? "Object"} ${savedItems.length + index + 1}`;
+        return { ...item, kind: "object", label, name: label, center: { lat: item.point[0], lon: item.point[1] }, createdAt: "", saved: false };
+      }),
+      ...pendingPolygons.map((item, index): TableItem => {
+        const label = `Polygon ${savedItems.length + index + 1}`;
+        return { ...item, kind: "polygon", label, name: label, createdAt: "", saved: false };
+      }),
     ];
-    return result.sort((left, right) => {
-      if (!left.saved && right.saved) return -1;
-      if (left.saved && !right.saved) return 1;
-      return right.createdAt.localeCompare(left.createdAt);
-    });
-  }, [pendingObjects, pendingPolygons, savedObjects, savedPolygons, types]);
+    return [...drafts, ...savedItems.map((item): TableItem => ({ ...item, label: item.name, saved: true }))];
+  }, [pendingObjects, pendingPolygons, savedItems, types]);
+
+  useEffect(() => {
+    if (!selected) return;
+    rowRefs.current.get(`${selected.kind}:${selected.id}`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [items, selected]);
+
+  useEffect(() => {
+    if (selected && !items.some((item) => item.id === selected.id && item.kind === selected.kind)) setSelected(null);
+  }, [items, selected]);
 
   const addPolygon = (shape: DrawingShape) => {
     setAddingObject(false);
@@ -132,7 +135,7 @@ export default function App() {
 
   const onPolygonDrawn = (coordinates: number[][][], center: LeafletPosition) => {
     const id = crypto.randomUUID();
-    setPendingPolygons((current) => [...current, { id, coordinates, center }]);
+    setPendingPolygons((current) => [...current, { id, coordinates, center: { lat: center[0], lon: center[1] } }]);
     setSelected({ kind: "polygon", id });
     setDrawing(null);
   };
@@ -171,11 +174,11 @@ export default function App() {
     deleteAllPolygons.mutate();
   };
 
-  const toggleVisibility = (key: string) => {
+  const toggleVisibility = (id: string) => {
     setHidden((current) => {
       const next = new Set(current);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -183,13 +186,50 @@ export default function App() {
   const navigateToItem = (item: TableItem) => {
     setSelected({ kind: item.kind, id: item.id });
     navigationRequestId.current += 1;
-    setNavigationRequest({ kind: item.kind, id: item.id, center: item.center, requestId: navigationRequestId.current });
+    setNavigationRequest({ item, requestId: navigationRequestId.current });
   };
 
-  const loading = objects.isLoading || polygons.isLoading || layers.isLoading || objectTypes.isLoading;
-  const queryError = [objects.error, polygons.error, layers.error, objectTypes.error].find(Boolean);
+  const mapDataQueryKey = queryKeys.mapData(filters.mapDataQuery, filters.generation);
+  const loadedCount = mapData.data?.pages.reduce((count, page) => count + page.items.length, 0) ?? 0;
+
+  const loadAll = async () => {
+    if (loadAllActive || mapData.isPlaceholderData || !mapData.hasNextPage) return;
+    loadAllCancelled.current = false;
+    setLoadAllStopped(false);
+    setLoadAllProgress("");
+    setLoadAllActive(true);
+    try {
+      let count = loadedCount;
+      while (count < 1000 && !loadAllCancelled.current) {
+        const current = queryClient.getQueryData<InfiniteData<MapDataPageDto>>(mapDataQueryKey);
+        if (!current?.pages.at(-1)?.nextCursor) break;
+        const result = await mapData.fetchNextPage();
+        if (result.isFetchNextPageError || loadAllCancelled.current) break;
+        const updated = queryClient.getQueryData<InfiniteData<MapDataPageDto>>(mapDataQueryKey);
+        count = updated?.pages.reduce((total, page) => total + page.items.length, 0) ?? count;
+        setLoadAllProgress(`Loaded ${count}...`);
+      }
+      const finalData = queryClient.getQueryData<InfiniteData<MapDataPageDto>>(mapDataQueryKey);
+      const finalCount = finalData?.pages.reduce((total, page) => total + page.items.length, 0) ?? 0;
+      if (!loadAllCancelled.current && finalCount >= 1000 && finalData?.pages.at(-1)?.nextCursor) setLoadAllStopped(true);
+    } finally {
+      setLoadAllActive(false);
+    }
+  };
+
+  const cancelLoadAll = () => {
+    loadAllCancelled.current = true;
+    setLoadAllActive(false);
+    void queryClient.cancelQueries({ queryKey: mapDataQueryKey, exact: true });
+  };
+
+  const loading = mapData.isLoading || layers.isLoading || objectTypes.isLoading || polygonOptions.isLoading;
+  const queryError = [layers.error, objectTypes.error, polygonOptions.error].find(Boolean);
   const error = errorMessage || queryError?.message || "";
   const unsavedCount = pendingObjects.length + pendingPolygons.length;
+  const filterNotice = filters.mapViewOnly
+    ? "Showing only items that match the table filters and the current map view"
+    : "Showing only items that match the table filters";
 
   return (
     <main className="workspace">
@@ -201,17 +241,20 @@ export default function App() {
       </header>
       <section className="map-region" aria-label="Interactive map">
         <MapView
-          objects={savedObjects}
-          polygons={savedPolygons}
-          pendingObjects={pendingObjects}
-          pendingPolygons={pendingPolygons}
+          items={items}
           hidden={hidden}
           selected={selected}
           drawing={drawing}
           addingObject={addingObject}
-          selectedObjectType={selectedType}
           navigationRequest={navigationRequest}
-          onSelect={(next) => { setSelected(next); setConfirmDeleteAll(false); }}
+          mapViewOnly={filters.mapViewOnly}
+          onViewportChange={filters.reportViewport}
+          loadedCount={loadedCount}
+          moreAvailable={Boolean(mapData.hasNextPage)}
+          filterNotice={filters.isFiltered ? filterNotice : ""}
+          activeFilterCount={filters.activeFilterCount}
+          onResetFilters={filters.resetAll}
+          onSelect={(next: Selection) => { setSelected(next); setConfirmDeleteAll(false); }}
           onObjectPlace={placeObject}
           onPolygonDrawn={onPolygonDrawn}
           onCancelDrawing={() => { setDrawing(null); setAddingObject(false); }}
@@ -225,7 +268,7 @@ export default function App() {
         <PolygonPanel
           pendingCount={pendingPolygons.length}
           hasPolygonSelection={selected?.kind === "polygon"}
-          hasAnyPolygons={savedPolygons.length > 0 || pendingPolygons.length > 0}
+          hasAnyPolygons={(polygonOptions.data?.length ?? 0) > 0 || pendingPolygons.length > 0}
           confirmDeleteAll={confirmDeleteAll}
           onAdd={addPolygon}
           onSave={() => savePolygons.mutate(pendingPolygons)}
@@ -246,7 +289,23 @@ export default function App() {
           selected={selected}
           hidden={hidden}
           rowRefs={rowRefs}
-          onSelect={(next) => { setSelected(next); setConfirmDeleteAll(false); }}
+          filters={filters}
+          objectTypes={types}
+          polygonOptions={polygonOptions.data ?? []}
+          loadedCount={loadedCount}
+          hasNextPage={Boolean(mapData.hasNextPage)}
+          isLoading={mapData.isLoading && items.length === 0}
+          isFetching={mapData.isFetching && !mapData.isFetchingNextPage}
+          error={mapData.error?.message ?? ""}
+          isPlaceholderData={mapData.isPlaceholderData}
+          isFetchingNextPage={mapData.isFetchingNextPage}
+          loadAllActive={loadAllActive}
+          loadAllProgress={loadAllProgress}
+          loadAllStopped={loadAllStopped}
+          onLoadMore={() => { void mapData.fetchNextPage(); }}
+          onLoadAll={() => { void loadAll(); }}
+          onCancelLoadAll={cancelLoadAll}
+          onSelect={(next: Selection) => { setSelected(next); setConfirmDeleteAll(false); }}
           onDoubleClick={navigateToItem}
           onToggleVisibility={toggleVisibility}
         />

@@ -3,6 +3,8 @@ import type {
   CreatePolygonRequest,
   DeleteResultDto,
   LayerDto,
+  MapDataPageDto,
+  MapDataQuery,
   MapObjectDto,
   ObjectTypeDto,
   PolygonDto,
@@ -43,9 +45,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  getMapData: (query: MapDataQuery, signal?: AbortSignal) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined) params.set(key, String(value));
+    }
+    return request<MapDataPageDto>(`/api/map-data?${params.toString()}`, { signal });
+  },
   getObjectTypes: () => request<ObjectTypeDto[]>("/api/object-types"),
   getLayers: () => request<LayerDto[]>("/api/layers"),
-  getObjects: () => request<MapObjectDto[]>("/api/objects?limit=1000"),
   getPolygons: () => request<PolygonDto[]>("/api/polygons?limit=1000"),
   createObjects: (items: CreateMapObjectRequest[]) =>
     request<MapObjectDto[]>("/api/objects", { method: "POST", body: JSON.stringify({ items }) }),

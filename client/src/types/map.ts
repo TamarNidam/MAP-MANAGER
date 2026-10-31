@@ -1,5 +1,6 @@
 import type { GeoPointDto, MapObjectDto, PolygonDto } from "../api/types";
 import type { DrawingShape } from "../map/coords";
+import type { LeafletPosition } from "../map/coords";
 
 export type ItemKind = "object" | "polygon";
 export type Selection = { kind: ItemKind; id: string } | null;
@@ -14,17 +15,19 @@ export type PendingObject = {
 export type PendingPolygon = {
   id: string;
   coordinates: number[][][];
-  center: [number, number];
+  center: GeoPointDto;
 };
 
-export type TableItem = {
+type TableItemBase = {
   id: string;
-  kind: ItemKind;
   label: string;
+  name: string;
   center: GeoPointDto;
   createdAt: string;
-  saved: boolean;
 };
 
-export type MapObject = MapObjectDto & { kind: "object" };
-export type MapPolygon = PolygonDto & { kind: "polygon" };
+export type TableItem =
+  | (MapObjectDto & TableItemBase & { kind: "object"; saved: true })
+  | (PolygonDto & TableItemBase & { kind: "polygon"; saved: true })
+  | (PendingObject & TableItemBase & { kind: "object"; saved: false; point: LeafletPosition })
+  | (PendingPolygon & TableItemBase & { kind: "polygon"; saved: false });

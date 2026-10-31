@@ -10,6 +10,10 @@ namespace MapManager.Api.Services;
 /// <summary>Turns the text query parameters of GET /api/map-data into a typed query, reporting every bad parameter at once.</summary>
 public static class MapDataQueryParser
 {
+    // Keep bbox corners distinct through double-precision GeoJSON serialization.
+    private const double MinimumBboxSideMeters = 0.000001;
+    private const double MetersPerLatitudeDegree = 111_320;
+
     /// <exception cref="RequestValidationException">At least one parameter is invalid.</exception>
     public static MapDataQuery Parse(MapDataQueryRequest request, DateTime now)
     {
@@ -97,6 +101,43 @@ public static class MapDataQueryParser
             error = "The minimum longitude and latitude must be less than the maximum ones.";
         }
 
-        return error is null ? new BoundingBox(values[0], values[1], values[2], values[3]) : null;
+        if (error is not null)
+        {
+            return null;
+        }
+
+        var centerLatitude = (values[1] + values[3]) / 2;
+        var latitudeSpan = MinimumBboxSideMeters / MetersPerLatitudeDegree;
+        var longitudeScale = MetersPerLatitudeDegree * Math.Max(Math.Cos(centerLatitude * Math.PI / 180), 0.000001);
+        var longitudeSpan = Math.Min(360, MinimumBboxSideMeters / longitudeScale);
+
+        var (minLongitude, maxLongitude) = ExpandAxis(values[0], values[2], longitudeSpan, -180, 180);
+        var (minLatitude, maxLatitude) = ExpandAxis(values[1], values[3], latitudeSpan, -90, 90);
+        return new BoundingBox(minLongitude, minLatitude, maxLongitude, maxLatitude);
+    }
+
+    private static (double Min, double Max) ExpandAxis(double min, double max, double minimumSpan, double lowerBound, double upperBound)
+    {
+        if (max - min >= minimumSpan)
+        {
+            return (min, max);
+        }
+
+        var center = (min + max) / 2;
+        var expandedMin = center - minimumSpan / 2;
+        var expandedMax = center + minimumSpan / 2;
+
+        if (expandedMin < lowerBound)
+        {
+            expandedMax += lowerBound - expandedMin;
+            expandedMin = lowerBound;
+        }
+        if (expandedMax > upperBound)
+        {
+            expandedMin -= expandedMax - upperBound;
+            expandedMax = upperBound;
+        }
+
+        return (expandedMin, expandedMax);
     }
 }

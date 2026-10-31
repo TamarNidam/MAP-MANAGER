@@ -1,6 +1,7 @@
 export type GeoJsonPosition = [number, number];
 export type LeafletPosition = [number, number];
 export type DrawingShape = "Polygon" | "Rectangle" | "Circle";
+export type GeoJsonBbox = [number, number, number, number];
 
 export function geoJsonToLeaflet([lon, lat]: GeoJsonPosition): LeafletPosition {
   return [lat, lon];
@@ -8,6 +9,10 @@ export function geoJsonToLeaflet([lon, lat]: GeoJsonPosition): LeafletPosition {
 
 export function leafletToGeoJson([lat, lon]: LeafletPosition): GeoJsonPosition {
   return [lon, lat];
+}
+
+export function leafletBoundsToGeoJsonBbox(west: number, south: number, east: number, north: number): GeoJsonBbox {
+  return [west, south, east, north];
 }
 
 export function geoJsonPolygonToLeaflet(coordinates: number[][][]): LeafletPosition[][] {

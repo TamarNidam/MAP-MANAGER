@@ -56,3 +56,23 @@ export type ProblemDetails = {
   detail?: string;
   status?: number;
 };
+
+export type MapDataItemDto =
+  | (MapObjectDto & { kind: "object" })
+  | (PolygonDto & { kind: "polygon" });
+
+export type MapDataPageDto = {
+  items: MapDataItemDto[];
+  nextCursor: string | null;
+};
+
+export type MapDataQuery = {
+  type?: string;
+  creator?: string;
+  createdWithinDays?: number;
+  within?: string;
+  q?: string;
+  bbox?: string;
+  limit: number;
+  cursor?: string;
+};
