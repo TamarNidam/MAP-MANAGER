@@ -333,17 +333,6 @@ export default function App() {
     setDetailsResetToken((value) => value + 1);
   };
 
-  useEffect(() => {
-    if (!geometrySession) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      cancelGeometry();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [geometrySession]);
-
   const moveObject = (id: string, point: [number, number]) => {
     setGeometrySession((current) => current?.kind === "object" && current.id === id ? { ...current, point } : current);
   };
@@ -640,7 +629,6 @@ export default function App() {
             key={`${selectedWithGeometry.kind}:${selectedWithGeometry.id}`}
             item={selectedWithGeometry}
             layers={layers.data ?? []}
-            objectTypes={types}
             onSaveChanges={saveDetails}
             onDuplicate={duplicateItem}
             onDelete={deleteDetailsItem}
@@ -651,6 +639,10 @@ export default function App() {
             onStartGeometry={(mode) => startGeometryEdit(selectedWithGeometry, mode)}
             onStopGeometryMode={stopGeometryMode}
             onCancel={cancelGeometry}
+            onClose={() => {
+              if (geometrySession) cancelGeometry();
+              setSelected(null);
+            }}
           />
         )}
         <div className="map-attribution">Tel Aviv, Israel <span>·</span> OpenStreetMap</div>

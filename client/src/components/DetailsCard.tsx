@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { LayerDto, ObjectTypeDto } from "../api/types";
+import type { LayerDto } from "../api/types";
 import type { TableItem } from "../types/map";
 
 type EditableFields = {
@@ -14,7 +14,6 @@ type EditableFields = {
 type DetailsCardProps = {
   item: TableItem;
   layers: LayerDto[];
-  objectTypes: ObjectTypeDto[];
   onSaveChanges: (item: TableItem, fields: EditableFields) => Promise<void>;
   onDuplicate: (item: TableItem) => void;
   onDelete: (item: TableItem) => Promise<void>;
@@ -25,6 +24,7 @@ type DetailsCardProps = {
   onStartGeometry: (mode: "move" | "vertices" | "redraw") => void;
   onStopGeometryMode: () => void;
   onCancel: () => void;
+  onClose: () => void;
 };
 
 const swatches = ["#0F6B63", "#2563EB", "#DC2626", "#D97706", "#7C3AED"];
@@ -49,7 +49,7 @@ function sameFields(left: EditableFields, right: EditableFields): boolean {
     && left.radiusMeters === right.radiusMeters;
 }
 
-export function DetailsCard({ item, layers, objectTypes, onSaveChanges, onDuplicate, onDelete, geometryMode, geometryPending, geometrySessionActive, resetToken, onStartGeometry, onStopGeometryMode, onCancel }: DetailsCardProps) {
+export function DetailsCard({ item, layers, onSaveChanges, onDelete, geometryMode, geometryPending, geometrySessionActive, resetToken, onStartGeometry, onStopGeometryMode, onCancel, onClose }: DetailsCardProps) {
   const [original, setOriginal] = useState(() => fieldsFor(item));
   const [fields, setFields] = useState(() => fieldsFor(item));
   const [error, setError] = useState("");
@@ -66,14 +66,14 @@ export function DetailsCard({ item, layers, objectTypes, onSaveChanges, onDuplic
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || saving || deleting) return;
+      if (event.key !== "Escape") return;
       setFields(original);
       setError("");
-      if (geometrySessionActive) onCancel();
+      onClose();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [deleting, geometrySessionActive, onCancel, original, saving]);
+  }, [onClose, original]);
 
   const save = async () => {
     setSaving(true);
@@ -125,41 +125,18 @@ export function DetailsCard({ item, layers, objectTypes, onSaveChanges, onDuplic
           {layers.map((layer) => <option key={layer.id} value={layer.id}>{layer.name}</option>)}
         </select>
       </label>
-      {item.kind === "object" && (
-        <label className="details-field">Type
-          <select value={fields.objectType} onChange={(event) => setFields({ ...fields, objectType: event.target.value })}>
-            {objectTypes.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}
-          </select>
-        </label>
-      )}
-      <div className="geometry-actions">
-        {item.kind === "object" ? (
-          <button className={`button button-secondary${geometryMode === "move" ? " is-active" : ""}`} disabled={geometryMode !== null && geometryMode !== "move"} onClick={() => geometryMode === "move" ? onStopGeometryMode() : onStartGeometry("move")}>
-            {geometryMode === "move" ? "Done moving" : "Move"}
+      {item.kind === "polygon" && (
+        <div className="geometry-actions">
+          <button className={`button button-secondary${geometryMode === "vertices" ? " is-active" : ""}`} disabled={geometryMode !== null && geometryMode !== "vertices"} onClick={() => geometryMode === "vertices" ? onStopGeometryMode() : onStartGeometry("vertices")}>
+            {geometryMode === "vertices" ? "Done editing vertices" : "Edit vertices"}
           </button>
-        ) : (
-          <>
-            <button className={`button button-secondary${geometryMode === "vertices" ? " is-active" : ""}`} disabled={geometryMode !== null && geometryMode !== "vertices"} onClick={() => geometryMode === "vertices" ? onStopGeometryMode() : onStartGeometry("vertices")}>
-              {geometryMode === "vertices" ? "Done editing vertices" : "Edit vertices"}
-            </button>
-            <button className="button button-secondary" disabled={geometryMode !== null && geometryMode !== "redraw"} onClick={() => onStartGeometry("redraw")}>
-              {geometryMode === "redraw" ? "Redraw on map…" : "Redraw"}
-            </button>
-          </>
-        )}
         {geometryPending && <span className="geometry-pending">Geometry pending</span>}
-      </div>
-      <dl className="details-readonly">
-        <div><dt>Created by</dt><dd>{item.saved ? item.createdBy : "—"}</dd></div>
-        <div><dt>Created</dt><dd>{item.saved ? new Date(item.createdAt).toLocaleString() : "Draft"}</dd></div>
-        <div><dt>Center</dt><dd>{item.center.lat.toFixed(5)}, {item.center.lon.toFixed(5)}</dd></div>
-        {item.kind === "polygon" && <div><dt>Shape</dt><dd>{item.shape ?? "polygon"}</dd></div>}
-      </dl>
+        </div>
+      )}
       {error && <div className="details-error" role="alert">{error}</div>}
       <div className="details-actions">
         <button className="button button-primary" disabled={!changed || saving || deleting} onClick={() => void save()}>{saving ? "Saving…" : "Save changes"}</button>
         <button className="button button-secondary" disabled={(!changed && !geometryPending && !geometrySessionActive) || saving || deleting} onClick={() => { setFields(original); setError(""); onCancel(); }}>Cancel</button>
-        <button className="button button-secondary" disabled={geometrySessionActive || saving || deleting} onClick={() => onDuplicate(item)}>Duplicate</button>
         <button className="button button-danger" disabled={geometrySessionActive || saving || deleting} onClick={() => void remove()}>{deleting ? "Deleting…" : "Delete"}</button>
       </div>
     </section>
