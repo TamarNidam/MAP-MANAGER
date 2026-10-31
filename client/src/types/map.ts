@@ -10,12 +10,20 @@ export type PendingObject = {
   id: string;
   objectType: string;
   point: [number, number];
+  name?: string;
+  layerId?: string;
+  color?: string;
 };
 
 export type PendingPolygon = {
   id: string;
   coordinates: number[][][];
   center: GeoPointDto;
+  name?: string;
+  layerId?: string;
+  color?: string;
+  shape?: "polygon" | "rectangle" | "circle";
+  radiusMeters?: number;
 };
 
 type TableItemBase = {
@@ -29,5 +37,5 @@ type TableItemBase = {
 export type TableItem =
   | (MapObjectDto & TableItemBase & { kind: "object"; saved: true })
   | (PolygonDto & TableItemBase & { kind: "polygon"; saved: true })
-  | (PendingObject & TableItemBase & { kind: "object"; saved: false; point: LeafletPosition })
-  | (PendingPolygon & TableItemBase & { kind: "polygon"; saved: false });
+  | (PendingObject & TableItemBase & { kind: "object"; saved: false; point: LeafletPosition; layerId: string })
+  | (PendingPolygon & TableItemBase & { kind: "polygon"; saved: false; layerId: string });

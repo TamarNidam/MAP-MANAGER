@@ -9,6 +9,8 @@ import type {
   ObjectTypeDto,
   PolygonDto,
   ProblemDetails,
+  UpdateMapObjectRequest,
+  UpdatePolygonRequest,
 } from "./types";
 
 const baseUrl = (import.meta.env.VITE_API_URL || "http://localhost:5080").replace(/\/$/, "");
@@ -36,7 +38,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       problem = {};
     }
-    const message = [problem.title, problem.detail].filter(Boolean).join(": ") || response.statusText;
+    const validationErrors = Object.entries(problem.errors ?? {}).flatMap(([field, messages]) =>
+      messages.map((message) => `${field}: ${message}`));
+    const message = [...[problem.title, problem.detail].filter(Boolean), ...validationErrors].join(": ") || response.statusText;
     throw new ApiError(message, response.status);
   }
 
@@ -59,6 +63,10 @@ export const api = {
     request<MapObjectDto[]>("/api/objects", { method: "POST", body: JSON.stringify({ items }) }),
   createPolygons: (items: CreatePolygonRequest[]) =>
     request<PolygonDto[]>("/api/polygons", { method: "POST", body: JSON.stringify({ items }) }),
+  updateObject: (id: string, item: UpdateMapObjectRequest) =>
+    request<MapObjectDto>(`/api/objects/${id}`, { method: "PUT", body: JSON.stringify(item) }),
+  updatePolygon: (id: string, item: UpdatePolygonRequest) =>
+    request<PolygonDto>(`/api/polygons/${id}`, { method: "PUT", body: JSON.stringify(item) }),
   deleteObject: (id: string) => request<void>(`/api/objects/${id}`, { method: "DELETE" }),
   deletePolygon: (id: string) => request<void>(`/api/polygons/${id}`, { method: "DELETE" }),
   deleteAllPolygons: () => request<DeleteResultDto>("/api/polygons", { method: "DELETE" }),

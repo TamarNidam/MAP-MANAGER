@@ -17,6 +17,7 @@ export type MapObjectDto = {
   objectType: string;
   layerId: string;
   createdBy: string;
+  color?: string | null;
   coordinates: [number, number];
   center: GeoPointDto;
   createdAt: string;
@@ -28,6 +29,9 @@ export type PolygonDto = {
   name: string;
   layerId: string;
   createdBy: string;
+  color?: string | null;
+  shape?: "polygon" | "rectangle" | "circle";
+  radiusMeters?: number | null;
   coordinates: number[][][];
   center: GeoPointDto;
   createdAt: string;
@@ -39,6 +43,7 @@ export type CreateMapObjectRequest = {
   objectType: string;
   layerId: string;
   createdBy: string;
+  color?: string;
   coordinates: [number, number];
 };
 
@@ -46,6 +51,26 @@ export type CreatePolygonRequest = {
   name: string;
   layerId: string;
   createdBy: string;
+  color?: string;
+  shape?: "polygon" | "rectangle" | "circle";
+  radiusMeters?: number;
+  coordinates: number[][][];
+};
+
+export type UpdateMapObjectRequest = {
+  name: string;
+  objectType: string;
+  layerId: string;
+  color?: string;
+  coordinates: [number, number];
+};
+
+export type UpdatePolygonRequest = {
+  name: string;
+  layerId: string;
+  color?: string;
+  shape: "polygon" | "rectangle" | "circle";
+  radiusMeters?: number;
   coordinates: number[][][];
 };
 
@@ -55,6 +80,7 @@ export type ProblemDetails = {
   title?: string;
   detail?: string;
   status?: number;
+  errors?: Record<string, string[]>;
 };
 
 export type MapDataItemDto =

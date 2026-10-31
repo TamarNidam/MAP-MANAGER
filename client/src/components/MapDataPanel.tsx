@@ -7,6 +7,7 @@ type MapDataPanelProps = {
   items: TableItem[];
   selected: Selection;
   hidden: Set<string>;
+  layerColors: Record<string, string>;
   rowRefs: MutableRefObject<Map<string, HTMLTableRowElement>>;
   filters: ReturnType<typeof useMapFilters>;
   objectTypes: ObjectTypeDto[];
@@ -110,10 +111,17 @@ export function MapDataPanel(props: MapDataPanelProps) {
                   ref={(element) => { if (element) props.rowRefs.current.set(key, element); else props.rowRefs.current.delete(key); }}
                   className={`${isSelected ? "is-selected" : ""}${isHidden ? " is-hidden" : ""}`}
                   onClick={() => props.onSelect({ kind: item.kind, id: item.id })}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    props.onSelect({ kind: item.kind, id: item.id });
+                  }}
                   onDoubleClick={() => props.onDoubleClick(item)}
                   aria-selected={isSelected}
                 >
-                  <td>{item.label}{!item.saved && <span className="unsaved-dot" title="Unsaved" />}</td>
+                  <td>
+                    <span className="item-color-dot" style={{ backgroundColor: item.color ?? props.layerColors[item.layerId] ?? "#0F6B63" }} />
+                    {item.label}{!item.saved && <span className="unsaved-dot" title="Unsaved" />}
+                  </td>
                   <td>{item.center.lat.toFixed(5)}</td>
                   <td>{item.center.lon.toFixed(5)}</td>
                   <td>

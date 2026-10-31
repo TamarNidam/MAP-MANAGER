@@ -13,6 +13,7 @@ const VIEW_STORAGE_KEY = "map-manager-view";
 type MapViewProps = {
   items: TableItem[];
   hidden: Set<string>;
+  layerColors: Record<string, string>;
   selected: Selection;
   drawing: DrawingShape | null;
   addingObject: boolean;
@@ -170,17 +171,26 @@ export function MapView(props: MapViewProps) {
 
           if (item.kind === "object") {
             const position = item.saved ? geoJsonToLeaflet(item.coordinates) : item.point;
+            const color = item.color ?? props.layerColors[item.layerId];
             return (
               <Marker
                 key={`${item.kind}:${item.id}`}
                 position={position}
-                icon={objectIcon(item.objectType, selected, !item.saved, item.id)}
-                eventHandlers={{ click: (event) => { L.DomEvent.stopPropagation(event.originalEvent); props.onSelect({ kind: "object", id: item.id }); } }}
+                icon={objectIcon(item.objectType, selected, !item.saved, item.id, color)}
+                eventHandlers={{
+                  click: (event) => { L.DomEvent.stopPropagation(event.originalEvent); props.onSelect({ kind: "object", id: item.id }); },
+                  contextmenu: (event) => {
+                    L.DomEvent.preventDefault(event.originalEvent);
+                    L.DomEvent.stopPropagation(event.originalEvent);
+                    props.onSelect({ kind: "object", id: item.id });
+                  },
+                }}
               />
             );
           }
 
           const unsaved = !item.saved;
+          const color = item.color ?? props.layerColors[item.layerId] ?? "#0F6B63";
           return (
             <Polygon
               key={`${item.kind}:${item.id}`}
@@ -193,14 +203,21 @@ export function MapView(props: MapViewProps) {
                 path?.setAttribute("data-feature-id", item.id);
               }}
               pathOptions={{
-                color: unsaved ? "#C1842D" : selected ? "#B7792D" : "#0F6B63",
+                color,
                 weight: selected ? 4 : 2,
                 dashArray: unsaved ? "6 6" : undefined,
-                fillColor: unsaved ? "#F4E7CE" : selected ? "#E6BD76" : "#0F6B63",
+                fillColor: color,
                 fillOpacity: selected ? 0.38 : unsaved ? 0.2 : 0.16,
                 className: `${unsaved ? "unsaved-feature" : ""}${selected ? " selected-feature" : ""}`,
               }}
-              eventHandlers={{ click: (event) => { L.DomEvent.stopPropagation(event.originalEvent); props.onSelect({ kind: "polygon", id: item.id }); } }}
+              eventHandlers={{
+                click: (event) => { L.DomEvent.stopPropagation(event.originalEvent); props.onSelect({ kind: "polygon", id: item.id }); },
+                contextmenu: (event) => {
+                  L.DomEvent.preventDefault(event.originalEvent);
+                  L.DomEvent.stopPropagation(event.originalEvent);
+                  props.onSelect({ kind: "polygon", id: item.id });
+                },
+              }}
             />
           );
         })}
