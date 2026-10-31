@@ -14,7 +14,8 @@ import type {
   UpdatePolygonRequest,
 } from "./types";
 
-const baseUrl = (import.meta.env.VITE_API_URL || "http://localhost:5080").replace(/\/$/, "");
+// Request paths already start with /api, so this is the origin only. Empty means same origin (Docker/nginx).
+const baseUrl = (import.meta.env.VITE_API_URL ?? "http://localhost:5080").replace(/\/$/, "");
 
 export class ApiError extends Error {
   constructor(

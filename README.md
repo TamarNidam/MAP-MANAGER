@@ -15,7 +15,7 @@ Copy `.env.example` to `.env` to override the clearly marked development-only Mo
 docker compose up --build
 ```
 
-Open the client at <http://localhost:8080>, the API at <http://localhost:5080>, and health at <http://localhost:5080/health>. The client proxies API requests through nginx, so Docker uses a relative `/api` URL.
+Open the client at <http://localhost:8080>, the API at <http://localhost:5080>, and health at <http://localhost:5080/health>. The client proxies API requests through nginx, so Docker builds it with an empty `VITE_API_URL` and calls `/api` on its own origin.
 
 ### Local development
 
