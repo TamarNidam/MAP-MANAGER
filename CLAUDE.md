@@ -38,5 +38,6 @@ Take-home app for managing map objects and polygons.
 ## Phases
 - 0 Setup, 1 Server core, 2 `/api/map-data`, 2b optional feature fields, and 3 Client vertical slice/drawing UX: done.
 - **4a: implemented, awaiting my manual check.**
-- **4b: not started.**
-- 5 Docker/polish and 6 aggregations: not started.
+- 4b client editing and layers: done.
+- **5 Docker packaging and documentation: done.**
+- 6 aggregations: not started.

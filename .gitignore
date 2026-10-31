@@ -11,6 +11,8 @@ dist/
 
 # Local secrets and environment
 .env
+.env.*
+!.env.example
 *.local.json
 
 # OS / editors

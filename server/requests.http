@@ -1,0 +1,121 @@
+@baseUrl = http://localhost:5080
+@layerId = 000000000000000000000001
+@objectId = 000000000000000000000002
+@polygonId = 000000000000000000000003
+
+### Health
+GET {{baseUrl}}/health
+
+### Object types
+GET {{baseUrl}}/api/object-types
+
+### Layers
+GET {{baseUrl}}/api/layers
+
+### Create layer
+POST {{baseUrl}}/api/layers
+Content-Type: application/json
+
+{
+  "name": "Operations",
+  "color": "#2563EB"
+}
+
+### Replace layer
+PUT {{baseUrl}}/api/layers/{{layerId}}
+Content-Type: application/json
+
+{
+  "name": "Operations",
+  "color": "#2563EB"
+}
+
+### Delete layer
+DELETE {{baseUrl}}/api/layers/{{layerId}}
+
+### Objects
+GET {{baseUrl}}/api/objects
+
+### Create objects
+POST {{baseUrl}}/api/objects
+Content-Type: application/json
+
+{
+  "items": [
+    {
+      "name": "Jeep 1",
+      "objectType": "jeep",
+      "layerId": "{{layerId}}",
+      "createdBy": "Map Manager",
+      "coordinates": [34.7818, 32.0853]
+    }
+  ]
+}
+
+### Read object
+GET {{baseUrl}}/api/objects/{{objectId}}
+
+### Replace object
+PUT {{baseUrl}}/api/objects/{{objectId}}
+Content-Type: application/json
+
+{
+  "name": "Jeep 1",
+  "objectType": "jeep",
+  "layerId": "{{layerId}}",
+  "coordinates": [34.7818, 32.0853]
+}
+
+### Delete object
+DELETE {{baseUrl}}/api/objects/{{objectId}}
+
+### Polygons
+GET {{baseUrl}}/api/polygons
+
+### Create polygons
+POST {{baseUrl}}/api/polygons
+Content-Type: application/json
+
+{
+  "items": [
+    {
+      "name": "Work area",
+      "layerId": "{{layerId}}",
+      "createdBy": "Map Manager",
+      "coordinates": [[
+        [34.78, 32.08],
+        [34.79, 32.08],
+        [34.79, 32.09],
+        [34.78, 32.08]
+      ]]
+    }
+  ]
+}
+
+### Read polygon
+GET {{baseUrl}}/api/polygons/{{polygonId}}
+
+### Replace polygon
+PUT {{baseUrl}}/api/polygons/{{polygonId}}
+Content-Type: application/json
+
+{
+  "name": "Work area",
+  "layerId": "{{layerId}}",
+  "shape": "polygon",
+  "coordinates": [[
+    [34.78, 32.08],
+    [34.79, 32.08],
+    [34.79, 32.09],
+    [34.78, 32.08]
+  ]]
+}
+
+### Delete polygon
+DELETE {{baseUrl}}/api/polygons/{{polygonId}}
+
+### Delete all polygons (destructive)
+DELETE {{baseUrl}}/api/polygons
+
+### Map data with filters
+GET {{baseUrl}}/api/map-data?type=jeep&createdWithinDays=30&q=jeep&limit=50
