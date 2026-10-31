@@ -662,12 +662,14 @@ export default function App() {
           objectTypes={types}
           pendingCount={unsavedCount}
           hasSelection={Boolean(selected)}
+          activeAdd={geometrySession ? null : drawing ? "polygon" : addingObject ? "object" : null}
           confirmDeleteAll={confirmDeleteAll}
           error={error}
           onDismissError={() => setErrorMessage("")}
           actionsDisabled={geometrySession !== null || savingDrafts || !activeLayer}
           onAddPolygon={addPolygon}
           onAddObject={addObject}
+          onCancelAdd={() => { setDrawing(null); setAddingObject(null); }}
           onSave={() => { void saveDrafts(); }}
           onDeleteSelected={() => { if (selected) deleteSelected(selected.kind); }}
           onDeleteAllPolygons={handleDeleteAllPolygons}
