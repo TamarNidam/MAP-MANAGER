@@ -3,7 +3,7 @@
 Take-home app for managing map objects and polygons.
 
 ## Stack and structure
-- Server: ASP.NET Core Web API on `net8.0`, MongoDB 8, GeoJSON, Swagger in Development.
+- Server: ASP.NET Core Web API on `net8.0`, MongoDB 8, GeoJSON, Swagger in all environments.
 - Client: React, TypeScript, Vite, Leaflet, TanStack Query.
 - Server code is under `server/src/MapManager.Api/`; tests are under `server/tests/MapManager.Api.Tests/`. Client code is under `client/`.
 - Keep the flow Controller -> Service -> Repository. Controllers/DTOs do not expose Mongo types; mapping belongs in `Mapping/`.

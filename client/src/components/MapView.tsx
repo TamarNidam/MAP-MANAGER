@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import { MapContainer, Marker, Polygon, TileLayer, useMap } from "react-leaflet";
 import type { DrawingShape, Selection, TableItem } from "../types/map";
-import { geoJsonPolygonToLeaflet, geoJsonToLeaflet, leafletBoundsToGeoJsonBbox, leafletPolygonToGeoJson, type LeafletPosition } from "../map/coords";
+import { geoJsonPolygonToLeaflet, leafletBoundsToGeoJsonBbox, leafletPolygonToGeoJson } from "../map/coords";
+import { geoJsonToLeaflet, type LeafletPosition } from "../geometry/coordinates";
 import { objectIcon } from "../map/ObjectMarker";
 import { ShapeDrawing } from "../map/ShapeDrawing";
 

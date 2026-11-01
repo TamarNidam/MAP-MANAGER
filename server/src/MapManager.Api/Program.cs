@@ -76,15 +76,14 @@ app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseMiddleware<RequestBodyLimitMiddleware>();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Swagger is enabled in all environments for reviewer convenience; would be restricted in production.
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseCors("Client");
 app.MapControllers();
 app.MapHealthChecks("/health");
+app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 
 app.Run();
 

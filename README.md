@@ -15,7 +15,7 @@ Copy `.env.example` to `.env` to override the clearly marked development-only Mo
 docker compose up --build
 ```
 
-Open the client at <http://localhost:8080>, the API at <http://localhost:5080>, and health at <http://localhost:5080/health>. The client proxies API requests through nginx, so Docker builds it with an empty `VITE_API_URL` and calls `/api` on its own origin.
+Open the client at <http://localhost:8080>, the API docs (Swagger) at <http://localhost:5080/swagger>, and health at <http://localhost:5080/health>. The API root, <http://localhost:5080>, redirects to Swagger. The client proxies API requests through nginx, so Docker builds it with an empty `VITE_API_URL` and calls `/api` on its own origin.
 
 ### Local development
 
@@ -32,6 +32,10 @@ The API creates MongoDB indexes and seeds the Default layer at startup. Local AP
 ## Architecture
 
 The server follows **Controller -> Service -> Repository**. Controllers use DTOs and do not expose MongoDB types; document/DTO conversion is isolated in `Mapping/`. Objects and polygons share one `features` collection as GeoJSON, with a `2dsphere` index; layers use their own collection and indexes are initialized at startup. The React client uses a single `/api/map-data` query for both map and table views.
+
+## Layout decision
+
+The brief defines four panels: the map on the left and Polygon, Objects, and Map Data down the right. An earlier iteration merged Polygon and Objects into one Draw panel and added a Layers panel because the right column felt crowded. That deviated from the brief, so the panels are split again and layer selection and management live in a compact Map Data header control.
 
 ## API overview
 
@@ -57,6 +61,8 @@ The server follows **Controller -> Service -> Repository**. Controllers use DTOs
 - Save creates items (batch POST); PUT replaces the full editable item. Batch creation validates all items first; rollback after a MongoDB insertion failure is best-effort.
 - Cursor pagination is sorted by `createdAt` descending and then `_id` descending; pages load on demand. **Map view only** adds a padded viewport filter; **Load all** stops at 1,000 items.
 - Map and table are two views of the same list. Drafts appear first. Item eyes and layer visibility are client-only state.
+- A polygon with shape `circle` must have `radiusMeters` greater than 0; other shapes cannot have one.
+- Swagger is enabled in all environments for reviewer convenience; it would be restricted in production.
 - There is no authentication; `createdBy` is a plain string. Deletes are hard deletes.
 - Leaflet does not support map rotation in this app.
 

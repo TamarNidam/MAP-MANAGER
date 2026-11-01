@@ -23,7 +23,7 @@ public sealed class UpdatePolygonRequest : IValidatableObject
     /// <summary>"polygon" (the default when left out), "rectangle" or "circle".</summary>
     public PolygonShape? Shape { get; init; }
 
-    /// <summary>Radius in meters. Only accepted when the shape is "circle". Leaving it out removes the current radius.</summary>
+    /// <summary>Radius in meters, greater than 0. Required when the shape is "circle" and rejected otherwise.</summary>
     [Range(0d, ValidationLimits.MaxRadiusMeters, MinimumIsExclusive = true)]
     public double? RadiusMeters { get; init; }
 

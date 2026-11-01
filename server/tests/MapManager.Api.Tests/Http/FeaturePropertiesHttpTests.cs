@@ -5,16 +5,18 @@ using System.Text.Json;
 namespace MapManager.Api.Tests.Http;
 
 /// <summary>Validation of the optional color, shape and radiusMeters fields on POST.</summary>
+[Collection(MongoDbCollection.Name)]
 public sealed class FeaturePropertiesHttpTests : IDisposable
 {
     private const string ObjectsPath = "/api/objects";
     private const string PolygonsPath = "/api/polygons";
 
-    private readonly ApiFactory _factory = new();
+    private readonly MongoApiFactory _factory;
     private readonly HttpClient _client;
 
-    public FeaturePropertiesHttpTests()
+    public FeaturePropertiesHttpTests(MongoDbFixture fixture)
     {
+        _factory = fixture.CreateFactory();
         _client = _factory.CreateClient();
     }
 
@@ -41,6 +43,7 @@ public sealed class FeaturePropertiesHttpTests : IDisposable
     [InlineData(PolygonsPath, "\"shape\":\"rectangle\"", HttpStatusCode.Created)]
     [InlineData(PolygonsPath, "\"shape\":\"hexagon\"", HttpStatusCode.BadRequest)]
     [InlineData(PolygonsPath, "\"shape\":\"circle\",\"radiusMeters\":0", HttpStatusCode.BadRequest)]
+    [InlineData(PolygonsPath, "\"shape\":\"circle\",\"radiusMeters\":-5", HttpStatusCode.BadRequest)]
     [InlineData(PolygonsPath, "\"shape\":\"rectangle\",\"radiusMeters\":100", HttpStatusCode.BadRequest)]
     [InlineData(PolygonsPath, "\"radiusMeters\":100", HttpStatusCode.BadRequest)]
     [InlineData(ObjectsPath, "\"shape\":\"circle\"", HttpStatusCode.BadRequest)]
@@ -51,14 +54,40 @@ public sealed class FeaturePropertiesHttpTests : IDisposable
         Assert.Equal(expected, response.StatusCode);
     }
 
-    private Task<HttpResponseMessage> PostAsync(string path, string extraFields)
+    [Fact]
+    public async Task Updating_a_circle_without_a_radius_returns_problem_details()
     {
+        var layerId = await GetDefaultLayerIdAsync();
+        var body = $"{{\"name\":\"x\",\"layerId\":\"{layerId}\",\"shape\":\"circle\",\"coordinates\":{JsonSerializer.Serialize(TestData.Square())}}}";
+
+        var response = await _client.PutAsync(
+            $"{PolygonsPath}/{layerId}",
+            new StringContent(body, Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("radiusMeters", await response.Content.ReadAsStringAsync());
+    }
+
+    private async Task<HttpResponseMessage> PostAsync(string path, string extraFields)
+    {
+        var layerId = await GetDefaultLayerIdAsync();
         var geometry = path == ObjectsPath
             ? $"\"objectType\":\"jeep\",\"coordinates\":{JsonSerializer.Serialize(TestData.Point())}"
             : $"\"coordinates\":{JsonSerializer.Serialize(TestData.Square())}";
-        var item = $"\"name\":\"x\",\"createdBy\":\"tamar\",\"layerId\":\"{TestData.LayerId}\",{geometry},{extraFields}";
+        var item = $"\"name\":\"x\",\"createdBy\":\"tamar\",\"layerId\":\"{layerId}\",{geometry},{extraFields}";
         var body = $"{{\"items\":[{{{item}}}]}}";
 
-        return _client.PostAsync(path, new StringContent(body, Encoding.UTF8, "application/json"));
+        return await _client.PostAsync(path, new StringContent(body, Encoding.UTF8, "application/json"));
+    }
+
+    private async Task<string> GetDefaultLayerIdAsync()
+    {
+        using var response = await _client.GetAsync("/api/layers");
+        response.EnsureSuccessStatusCode();
+        using var layers = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return layers.RootElement.EnumerateArray()
+            .Single(layer => layer.GetProperty("isDefault").GetBoolean())
+            .GetProperty("id").GetString()!;
     }
 }

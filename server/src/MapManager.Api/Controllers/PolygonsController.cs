@@ -18,7 +18,10 @@ public sealed class PolygonsController : ControllerBase
         _service = service;
     }
 
-    /// <summary>Creates a batch of polygons. Either all items are saved or none are.</summary>
+    /// <summary>
+    /// Creates a batch of polygons. The insert is not atomic on standalone MongoDB: a failed insert triggers a
+    /// best-effort rollback, and that rollback can itself fail and leave some items saved.
+    /// </summary>
     [HttpPost]
     [ProducesResponseType(typeof(IReadOnlyList<PolygonDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]

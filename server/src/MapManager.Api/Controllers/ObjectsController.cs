@@ -18,7 +18,10 @@ public sealed class ObjectsController : ControllerBase
         _service = service;
     }
 
-    /// <summary>Creates a batch of objects. Either all items are saved or none are.</summary>
+    /// <summary>
+    /// Creates a batch of objects. The insert is not atomic on standalone MongoDB: a failed insert triggers a
+    /// best-effort rollback, and that rollback can itself fail and leave some items saved.
+    /// </summary>
     [HttpPost]
     [ProducesResponseType(typeof(IReadOnlyList<MapObjectDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]

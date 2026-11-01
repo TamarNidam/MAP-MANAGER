@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import { CircleMarker, Polygon, Polyline, useMap } from "react-leaflet";
 import type { DrawingShape, Selection } from "../types/map";
+import { centroidOfRing } from "../geometry/centroid";
+import { geodesicCircleToGeoJson } from "../geometry/circles";
+import type { LeafletPosition } from "../geometry/coordinates";
 import {
   geoJsonPolygonToLeaflet,
-  geodesicCircleToGeoJson,
   leafletPolygonToGeoJson,
   rectangleToGeoJson,
-  type LeafletPosition,
 } from "./coords";
 
 type ShapeDrawingProps = {
@@ -27,13 +28,6 @@ type DragState = {
 };
 
 type PointerPosition = { point: L.Point; latlng: L.LatLng };
-
-function polygonCenter(points: LeafletPosition[]): LeafletPosition {
-  return points.reduce<LeafletPosition>(
-    (sum, point) => [sum[0] + point[0] / points.length, sum[1] + point[1] / points.length],
-    [0, 0],
-  );
-}
 
 export function ShapeDrawing(props: ShapeDrawingProps) {
   const map = useMap();
@@ -187,7 +181,8 @@ export function ShapeDrawing(props: ShapeDrawingProps) {
       if (points.length < 3) return false;
       const coordinates = leafletPolygonToGeoJson([points]);
       clearPolygon();
-      propsRef.current.onShapeComplete(coordinates, polygonCenter(points));
+      const centroid = centroidOfRing(coordinates[0]);
+      propsRef.current.onShapeComplete(coordinates, [centroid.lat, centroid.lon]);
       return true;
     };
 

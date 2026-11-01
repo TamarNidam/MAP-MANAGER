@@ -44,8 +44,9 @@ public sealed class MongoFeatureRepository : IFeatureRepository
         }
         catch (MongoBulkWriteException ex)
         {
-            // The local MongoDB is a standalone server, so multi-document transactions are not available.
-            // An ordered insert stops at the first error; the documents before it are removed so the batch is all or nothing.
+            // The local MongoDB is a standalone server, so multi-document transactions are not available and this insert is not atomic.
+            // An ordered insert stops at the first error. This best-effort rollback removes the batch by id; if the delete
+            // also fails, the documents inserted before the error stay stored.
             var ids = documents.Select(d => d.Id);
             await _features.DeleteManyAsync(Filter.In(f => f.Id, ids), CancellationToken.None);
 

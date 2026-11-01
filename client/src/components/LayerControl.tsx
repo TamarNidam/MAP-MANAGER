@@ -3,7 +3,7 @@ import type { LayerDto, LayerRequest } from "../api/types";
 
 type LayerDraft = LayerRequest;
 
-type LayersPanelProps = {
+export type LayerControlProps = {
   layers: LayerDto[];
   activeLayerId: string;
   hiddenLayerIds: Set<string>;
@@ -16,7 +16,7 @@ type LayersPanelProps = {
 
 const defaultDraft = (): LayerDraft => ({ name: "", color: "#0F6B63" });
 
-export function LayersPanel(props: LayersPanelProps) {
+export function LayerControl(props: LayerControlProps) {
   const [expanded, setExpanded] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, LayerDraft>>({});
   const [newLayer, setNewLayer] = useState(defaultDraft);
@@ -73,12 +73,15 @@ export function LayersPanel(props: LayersPanelProps) {
   };
 
   return (
-    <section className="panel layers-panel">
+    <div className="layers-control">
+      <select aria-label="Active layer" value={props.activeLayerId} onChange={(event) => props.onSetActive(event.target.value)}>
+        {props.layers.map((layer) => <option key={layer.id} value={layer.id}>{layer.name}</option>)}
+      </select>
       <button className="layers-summary" aria-expanded={expanded} onClick={() => setExpanded((open) => !open)}>
-        <span>Layers</span><span>{visibleCount} of {props.layers.length} visible</span><span aria-hidden="true">{expanded ? "−" : "+"}</span>
+        <span>Layers</span><span>{visibleCount}/{props.layers.length}</span><span aria-hidden="true">{expanded ? "−" : "+"}</span>
       </button>
       {expanded && (
-        <div className="layers-content">
+        <div className="layers-content" role="dialog" aria-label="Manage layers">
           {props.layers.map((layer) => {
             const draft = drafts[layer.id] ?? { name: layer.name, color: layer.color };
             const changed = draft.name !== layer.name || draft.color !== layer.color;
@@ -91,10 +94,6 @@ export function LayersPanel(props: LayersPanelProps) {
                 <span className="layer-color-dot" style={{ backgroundColor: draft.color }} />
                 <input aria-label={`${layer.name} name`} value={draft.name} onChange={(event) => updateDraft(layer, { name: event.target.value })} />
                 <input aria-label={`${layer.name} color`} type="color" value={draft.color} onChange={(event) => updateDraft(layer, { color: event.target.value.toUpperCase() })} />
-                <label className="active-layer-choice" title="Use for new items">
-                  <input type="radio" name="active-layer" checked={props.activeLayerId === layer.id} onChange={() => props.onSetActive(layer.id)} />
-                  <span className="visually-hidden">Active layer</span>
-                </label>
                 {changed && <button className="layer-action" disabled={isBusy} onClick={() => void save(layer.id)}>Save</button>}
                 {layer.name.trim().toLowerCase() !== "default" && !layer.isDefault && <button className="layer-action layer-delete" disabled={isBusy} onClick={() => void remove(layer.id)}>Delete</button>}
               </div>
@@ -108,7 +107,7 @@ export function LayersPanel(props: LayersPanelProps) {
           {error && <div className="details-error" role="alert">{error}</div>}
         </div>
       )}
-    </section>
+    </div>
   );
 }
 

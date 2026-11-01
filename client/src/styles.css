@@ -75,10 +75,14 @@ button { font: inherit; }
 .save-status.has-unsaved { border-color: #ead1a2; color: #8b5a13; background: #fff5df; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .draw-panel { padding: 12px 14px; }
-.draw-heading { margin-bottom: 5px; }
-.draw-heading h2 { margin: 0; font-size: 14px; line-height: 1.2; font-weight: 650; }
-.draw-row { display: flex; align-items: center; justify-content: space-between; min-height: 37px; gap: 12px; }
-.draw-row-label { color: #40514c; font-size: 11px; font-weight: 650; }
+.draw-panel .panel-heading { margin-bottom: 8px; }
+.panel-actions { display: flex; align-items: center; gap: 6px; }
+.panel-actions select, .layers-control > select { min-width: 0; height: 32px; padding: 0 8px; border: 1px solid #dfe7e4; border-radius: 6px; color: #273a36; background: #fff; font: inherit; font-size: 11px; }
+.panel-actions select { flex: 1 1 0; }
+.panel-actions .button { min-height: 32px; padding: 0 9px; white-space: nowrap; }
+.polygon-delete-all { display: flex; justify-content: flex-end; padding-top: 6px; margin-top: 6px; border-top: 1px solid #edf1ef; }
+.polygon-delete-all .button { min-height: 28px; padding: 0 9px; font-size: 10px; }
+.panel-actions .draw-type-icon { flex: 0 0 18px; }
 .split-button { position: relative; display: inline-flex; }
 .split-button .button { min-height: 30px; border-radius: 0; }
 .split-button .draw-add { min-width: 66px; border-radius: 7px 0 0 7px; }
@@ -92,16 +96,18 @@ button { font: inherit; }
 .object-type-menu { min-width: 155px; }
 .draw-type-icon { width: 19px; height: 19px; display: grid; place-items: center; color: var(--accent); }
 .draw-type-icon svg { width: 18px; height: 18px; fill: currentColor; }
-.draw-footer { display: flex; align-items: center; gap: 5px; padding-top: 6px; margin-top: 4px; border-top: 1px solid #edf1ef; }
-.draw-footer > .button { min-height: 30px; padding: 0 9px; font-size: 11px; }
-.draw-footer .button-danger { margin-left: auto; }
-.more-menu-anchor { margin-left: 0; }
-.draw-footer .more-button { width: 30px; min-height: 30px; padding: 0; font-size: 18px; line-height: 1; }
-.more-menu { top: auto; right: 0; bottom: calc(100% + 5px); min-width: 145px; }
 .draw-panel > .error-message { margin-bottom: 8px; }
-.item-count { margin-left: auto; min-width: 22px; padding: 3px 6px; border-radius: 10px; color: #5d706b; background: #eff4f2; text-align: center; font-size: 10px; }
+.item-count { margin-left: auto; padding: 3px 6px; color: #5d706b; text-align: right; font-size: 9px; white-space: nowrap; }
 .data-panel { position: relative; display: flex; flex-direction: column; min-height: 155px; flex: 1 1 auto; overflow: visible; }
 .data-panel .panel-heading { margin-bottom: 9px; }
+.data-panel .panel-heading h2 { flex: 0 0 auto; }
+.layers-control { position: relative; display: flex; align-items: center; gap: 4px; margin-left: 5px; }
+.layers-control > select { width: 108px; height: 29px; font-size: 10px; }
+.layers-summary { min-height: 29px; display: flex; align-items: center; gap: 5px; padding: 0 6px; border: 1px solid #d8e2df; border-radius: 6px; color: #27443e; background: #fff; font-size: 10px; cursor: pointer; }
+.layers-summary span:nth-child(2) { color: #7d8986; font-size: 9px; }
+.layers-content { position: absolute; z-index: 1500; top: calc(100% + 5px); right: 0; display: grid; gap: 7px; width: min(335px, calc(100vw - 32px)); max-height: 360px; overflow-y: auto; padding: 10px; border: 1px solid #e6ece9; border-radius: 8px; background: #fff; box-shadow: 0 6px 20px #173a3030; }
+.layer-row { display: grid; grid-template-columns: 25px 10px minmax(0, 1fr) 28px auto auto; align-items: center; gap: 5px; }
+.layers-content .new-layer-row { grid-template-columns: minmax(0, 1fr) 28px auto; }
 .table-wrap { min-height: 0; flex: 1 1 auto; overflow: auto; }
 table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11px; }
 th { padding: 7px 4px; color: #8a9693; border-bottom: 1px solid var(--line); text-align: left; font-size: 10px; font-weight: 600; }
@@ -160,11 +166,6 @@ tbody tr.is-hidden td { color: #a1aaa7; }
 .geometry-actions .button { min-height: 27px; padding: 0 7px; font-size: 10px; }
 .geometry-actions .button.is-active { border-color: #9dc6bd; color: #0b625a; background: #eaf5f2; }
 .geometry-pending { color: #8b5a13; font-size: 9px; }
-.layers-panel { margin-top: auto; padding: 0; overflow: hidden; }
-.layers-summary { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 15px; border: 0; color: #27443e; background: #fff; text-align: left; font-size: 12px; font-weight: 650; cursor: pointer; }
-.layers-summary span:nth-child(2) { margin-left: auto; color: #7d8986; font-size: 10px; font-weight: 450; }
-.layers-content { display: grid; gap: 7px; padding: 0 12px 12px; }
-.layer-row { display: grid; grid-template-columns: 25px 10px minmax(0, 1fr) 28px 20px auto auto; align-items: center; gap: 5px; }
 .layer-eye { width: 25px; height: 24px; display: inline-grid; place-items: center; padding: 4px; border: 0; border-radius: 5px; color: #778581; background: transparent; cursor: pointer; }
 .layer-eye:hover { color: var(--accent); background: #eaf5f2; }
 .layer-eye svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
@@ -189,6 +190,9 @@ tbody tr.is-hidden td { color: #a1aaa7; }
   .workspace { grid-template-columns: minmax(0, 1fr) 340px; padding: 8px; gap: 8px; }
   .sidebar { gap: 8px; }
   .panel { padding: 13px; }
+  .panel-actions { gap: 4px; }
+  .panel-actions .button { padding: 0 7px; font-size: 10px; }
+  .layers-control > select { width: 90px; }
 }
 
 @media (max-width: 640px) {
@@ -199,6 +203,10 @@ tbody tr.is-hidden td { color: #a1aaa7; }
   .top-brand { font-size: 11px; }
   .panel { padding: 11px 12px; border-radius: 10px; }
   .panel-heading { margin-bottom: 9px; }
+  .data-panel .panel-heading { flex-wrap: wrap; }
+  .data-panel .panel-heading .item-count { margin-left: auto; }
+  .layers-control { width: 100%; margin-left: 31px; }
+  .layers-control > select { flex: 1 1 auto; }
   .data-panel { min-height: 120px; }
   .table-wrap { max-height: none; }
   .map-filter-banner { right: 54px; left: 8px; top: 8px; max-width: none; font-size: 10px; }

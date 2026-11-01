@@ -10,7 +10,8 @@ namespace MapManager.Api.Repositories;
 public interface IFeatureRepository
 {
     /// <summary>
-    /// Inserts all documents and assigns their ids. Either all documents are stored or none are.
+    /// Inserts all documents and assigns their ids. Not atomic on standalone MongoDB: a rejected write triggers a
+    /// best-effort rollback that can itself fail, and other failures (such as a lost connection) are not rolled back.
     /// </summary>
     /// <exception cref="Errors.InvalidGeometryException">MongoDB rejected one of the geometries.</exception>
     Task InsertManyAsync(IReadOnlyList<FeatureDocument> documents, CancellationToken cancellationToken);
