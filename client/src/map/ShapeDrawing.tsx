@@ -1,9 +1,10 @@
+// Handles map gestures for drawing shapes and placing objects.
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import { CircleMarker, Polygon, Polyline, useMap } from "react-leaflet";
 import type { DrawingShape, Selection } from "../types/map";
 import { centroidOfRing } from "../geometry/centroid";
-import { geodesicCircleToGeoJson } from "../geometry/circles";
+import { createCircleDraft } from "../geometry/circles";
 import type { LeafletPosition } from "../geometry/coordinates";
 import {
   geoJsonPolygonToLeaflet,
@@ -81,7 +82,7 @@ export function ShapeDrawing(props: ShapeDrawingProps) {
 
     const previewFor = (shape: "Rectangle" | "Circle", start: LeafletPosition, end: LeafletPosition) => {
       if (shape === "Rectangle") return geoJsonPolygonToLeaflet(rectangleToGeoJson(start, end));
-      return geoJsonPolygonToLeaflet(geodesicCircleToGeoJson(start, end));
+      return geoJsonPolygonToLeaflet(createCircleDraft(start, end).coordinates);
     };
 
     const updateDrag = (position: PointerPosition) => {

@@ -1,12 +1,12 @@
+// Converts geometry between map projections and the shared GeoJSON helpers.
 import { geoJsonToLeaflet, leafletToGeoJson, type GeoJsonPosition, type LeafletPosition } from "../geometry/coordinates";
 import { closeRing } from "../geometry/rings";
-import { geodesicCircleToGeoJson } from "../geometry/circles";
 
 export type { GeoJsonPosition, LeafletPosition } from "../geometry/coordinates";
 export type DrawingShape = "Polygon" | "Rectangle" | "Circle";
 export type GeoJsonBbox = [number, number, number, number];
 
-export { geoJsonToLeaflet, leafletToGeoJson, geodesicCircleToGeoJson };
+export { geoJsonToLeaflet, leafletToGeoJson };
 
 export function leafletBoundsToGeoJsonBbox(west: number, south: number, east: number, north: number): GeoJsonBbox {
   return [west, south, east, north];

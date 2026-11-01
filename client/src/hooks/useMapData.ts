@@ -1,6 +1,7 @@
+// Owns map queries, within-filter recovery, invalidation, and paging.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
 import { queryKeys } from "../api/queryKeys";
 import type { MapDataPageDto, MapDataQuery } from "../api/types";
 import { useMapQueries } from "./useMapQueries";
@@ -8,7 +9,12 @@ import { useMapQueries } from "./useMapQueries";
 const PAGE_SIZE = 200;
 const LOAD_ALL_LIMIT = 1000;
 
-export function useMapData(query: MapDataQuery, generation: number) {
+type WithinFilter = {
+  id: string;
+  setId: (id: string) => void;
+};
+
+export function useMapData(query: MapDataQuery, generation: number, withinFilter?: WithinFilter) {
   const queryClient = useQueryClient();
   const queries = useMapQueries(query, generation);
   const queryKey = queryKeys.mapData(query, generation);
@@ -17,9 +23,14 @@ export function useMapData(query: MapDataQuery, generation: number) {
   const [loadAllProgress, setLoadAllProgress] = useState("");
   const [loadAllStopped, setLoadAllStopped] = useState(false);
   const [loadAllError, setLoadAllError] = useState("");
+  const [withinError, setWithinError] = useState("");
   const mapData = queries.mapData;
   const loadedCount = useMemo(
     () => mapData.data?.pages.reduce((count, page) => count + page.items.length, 0) ?? 0,
+    [mapData.data],
+  );
+  const savedItems = useMemo(
+    () => mapData.data?.pages.flatMap((page) => page.items) ?? [],
     [mapData.data],
   );
 
@@ -31,6 +42,13 @@ export function useMapData(query: MapDataQuery, generation: number) {
     setLoadAllStopped(false);
     setLoadAllError("");
   }, [generation]);
+
+  useEffect(() => {
+    if (withinFilter?.id && mapData.error instanceof ApiError && mapData.error.status === 404) {
+      withinFilter.setId("");
+      setWithinError("The selected inside polygon no longer exists; the filter was cleared.");
+    }
+  }, [withinFilter?.id, withinFilter?.setId, mapData.error]);
 
   const invalidateMapData = () => queryClient.invalidateQueries({ queryKey: queryKeys.mapDataRoot });
 
@@ -103,12 +121,16 @@ export function useMapData(query: MapDataQuery, generation: number) {
     mapData,
     queryKey,
     loadedCount,
+    savedItems,
     loadAllActive,
     loadAllProgress,
     loadAllStopped,
     loadAllError,
+    withinError,
+    dismissWithinError: () => setWithinError(""),
     loadAll,
     cancelLoadAll,
+    loadMore: mapData.fetchNextPage,
     invalidateMapData,
     invalidatePolygonsAndMapData,
   };

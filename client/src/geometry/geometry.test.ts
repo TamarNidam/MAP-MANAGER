@@ -1,6 +1,7 @@
+// Verifies the shared pure geometry helpers.
 import { describe, expect, it } from "vitest";
 import { centroidOfRing } from "./centroid";
-import { createCircleDraft, haversineDistanceMeters } from "./circles";
+import { createCircleDraft } from "./circles";
 import { nextDefaultName } from "./defaultNames";
 import { geoJsonToLeaflet, leafletToGeoJson } from "./coordinates";
 import { closeRing } from "./rings";
@@ -36,7 +37,6 @@ describe("geometry helpers", () => {
     expect(draft.radiusMeters).toBeCloseTo(1000, 1);
     expect(draft.coordinates[0]).toHaveLength(65);
     expect(draft.coordinates[0][0]).toEqual(draft.coordinates[0][64]);
-    expect(haversineDistanceMeters(center, edge)).toBe(draft.radiusMeters);
   });
 
   it("converts GeoJSON [lon,lat] and Leaflet [lat,lon]", () => {

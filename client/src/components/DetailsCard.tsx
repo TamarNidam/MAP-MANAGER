@@ -1,3 +1,4 @@
+// Displays editable details for a selected saved feature or draft.
 import { useEffect, useState } from "react";
 import type { LayerDto } from "../api/types";
 import type { TableItem } from "../types/map";

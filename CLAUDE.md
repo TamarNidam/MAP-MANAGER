@@ -6,6 +6,7 @@ Take-home app for managing map objects and polygons.
 - Server: ASP.NET Core Web API on `net8.0`, MongoDB 8, GeoJSON, Swagger in all environments.
 - Client: React, TypeScript, Vite, Leaflet, TanStack Query.
 - Server code is under `server/src/MapManager.Api/`; tests are under `server/tests/MapManager.Api.Tests/`. Client code is under `client/`.
+- Client structure: `App.tsx` mounts `Workspace.tsx`; `useWorkspaceViewModel` composes domain hooks for the `WorkspaceView.tsx` layout. `hooks/` owns drafts, map data, selection, drawing, layers, and feature actions; `geometry/` contains pure geometry helpers.
 - Keep the flow Controller -> Service -> Repository. Controllers/DTOs do not expose Mongo types; mapping belongs in `Mapping/`.
 - Use validated request DTOs, `ProblemDetails`, async I/O with cancellation tokens, and one type per file.
 
@@ -22,7 +23,7 @@ Take-home app for managing map objects and polygons.
 | DELETE | `/api/polygons` | Delete all polygons; returns `{ deletedCount }`. |
 | GET | `/api/map-data` | Filter and cursor-page objects/polygons; returns `{ items, nextCursor }`. |
 
-`/api/map-data` accepts `type`, `creator`, `createdWithinDays`, `within`, `q`, `layers`, `bbox`, `limit`, and `cursor`. The client requests 50 items per page.
+`/api/map-data` accepts `type`, `creator`, `createdWithinDays`, `within`, `q`, `layers`, `bbox`, `limit`, and `cursor`. The client requests 200 items per page.
 
 ## Behavior
 - Cursor pagination sorts by `createdAt` descending, then `_id` descending; never use `skip`.

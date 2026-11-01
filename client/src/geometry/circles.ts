@@ -1,10 +1,11 @@
+// Builds circle polygon geometry and its measured radius in one helper.
 import { leafletToGeoJson, type LeafletPosition } from "./coordinates";
 import { closeRing } from "./rings";
 
 const EARTH_RADIUS_METERS = 6_371_008.8;
 const CIRCLE_VERTEX_COUNT = 64;
 
-export function haversineDistanceMeters(first: LeafletPosition, second: LeafletPosition): number {
+function radiusMetersBetween(first: LeafletPosition, second: LeafletPosition): number {
   const radians = (degrees: number) => degrees * Math.PI / 180;
   const deltaLat = radians(second[0] - first[0]);
   const deltaLon = radians(second[1] - first[1]);
@@ -15,14 +16,13 @@ export function haversineDistanceMeters(first: LeafletPosition, second: LeafletP
   return EARTH_RADIUS_METERS * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
 }
 
-export function geodesicCircleToGeoJson(
+function geodesicCircleToGeoJson(
   center: LeafletPosition,
-  edge: LeafletPosition,
+  radiusMeters: number,
   vertexCount = CIRCLE_VERTEX_COUNT,
 ): number[][][] {
   const toRadians = (degrees: number) => degrees * Math.PI / 180;
   const toDegrees = (radians: number) => radians * 180 / Math.PI;
-  const radiusMeters = haversineDistanceMeters(center, edge);
   const angularRadius = radiusMeters / EARTH_RADIUS_METERS;
   const [centerLat, centerLon] = center.map(toRadians);
   const positions: LeafletPosition[] = [];
@@ -44,10 +44,11 @@ export function geodesicCircleToGeoJson(
 }
 
 export function createCircleDraft(center: LeafletPosition, edgePoint: LeafletPosition) {
+  const radiusMeters = radiusMetersBetween(center, edgePoint);
   return {
-    coordinates: geodesicCircleToGeoJson(center, edgePoint),
+    coordinates: geodesicCircleToGeoJson(center, radiusMeters),
     center: { lat: center[0], lon: center[1] },
-    radiusMeters: haversineDistanceMeters(center, edgePoint),
+    radiusMeters,
     shape: "circle" as const,
   };
 }
