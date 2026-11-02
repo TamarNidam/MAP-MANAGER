@@ -1,6 +1,7 @@
 // Owns draft collections, display models, generated names, and batch saving.
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { api } from "../api/client";
+import { withRetry } from "../api/retry";
 import type { MapDataItemDto, ObjectTypeDto } from "../api/types";
 import { nextDefaultName } from "../geometry/defaultNames";
 import { leafletToGeoJson } from "../geometry/coordinates";
@@ -89,8 +90,11 @@ export function useDrafts({
     if (saving || (!objects.length && !polygons.length)) return;
     setSaving(true);
     setErrorMessage("");
+    const describe = (reason: unknown) => reason instanceof Error ? reason.message : String(reason);
     try {
+      // clientId is the draft's UUID: if a response is lost and Save is retried, the server returns the existing record.
       const objectPayload = objects.map((item) => ({
+        clientId: item.id,
         name: item.name ?? objectNames.get(item.id)!,
         objectType: item.objectType,
         layerId: item.layerId ?? activeLayerId!,
@@ -99,6 +103,7 @@ export function useDrafts({
         coordinates: leafletToGeoJson(item.point),
       }));
       const polygonPayload = polygons.map((item) => ({
+        clientId: item.id,
         name: item.name ?? polygonNames.get(item.id)!,
         layerId: item.layerId ?? activeLayerId!,
         createdBy: "Map Manager",
@@ -107,71 +112,50 @@ export function useDrafts({
         ...(item.shape === "circle" && item.radiusMeters !== undefined ? { radiusMeters: item.radiusMeters } : {}),
         coordinates: item.coordinates,
       }));
-      const [objectResult, polygonResult] = await Promise.all([
-        objectPayload.length
-          ? api.createObjects(objectPayload).then((value) => ({ value }), (reason: unknown) => ({ reason }))
-          : Promise.resolve(undefined),
-        polygonPayload.length
-          ? api.createPolygons(polygonPayload).then((value) => ({ value }), (reason: unknown) => ({ reason }))
-          : Promise.resolve(undefined),
+      const [objectResult, polygonResult] = await Promise.allSettled([
+        objectPayload.length ? withRetry(() => api.createObjects(objectPayload)) : Promise.resolve(undefined),
+        polygonPayload.length ? withRetry(() => api.createPolygons(polygonPayload)) : Promise.resolve(undefined),
       ]);
+
+      // No client-side rollback: saved drafts leave state, failed ones stay so Save can be retried.
       const failures: string[] = [];
-      if (objectResult && "reason" in objectResult) {
-        failures.push(`Objects: ${objectResult.reason instanceof Error ? objectResult.reason.message : String(objectResult.reason)}`);
-      }
-      if (polygonResult && "reason" in polygonResult) {
-        failures.push(`Polygons: ${polygonResult.reason instanceof Error ? polygonResult.reason.message : String(polygonResult.reason)}`);
-      }
-
-      const objectSaved = objectResult && "value" in objectResult;
-      const polygonSaved = polygonResult && "value" in polygonResult;
-      if (failures.length) {
-        const rollbacks = [
-          ...(objectSaved ? objectResult.value.map((item) => api.deleteObject(item.id)) : []),
-          ...(polygonSaved ? polygonResult.value.map((item) => api.deletePolygon(item.id)) : []),
-        ];
-        const rollbackResults = await Promise.allSettled(rollbacks);
-        const rollbackFailures = rollbackResults.flatMap((result) =>
-          result.status === "rejected"
-            ? [`Rollback failed: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`]
-            : []);
-
-        if (objectSaved || polygonSaved) {
-          try {
-            if (polygonSaved) await refreshPolygonsAndMapData();
-            else await refresh();
-          } catch (error) {
-            rollbackFailures.push(`The list could not be refreshed: ${error instanceof Error ? error.message : String(error)}`);
-          }
-        }
-        setErrorMessage([...failures, ...rollbackFailures].join(" "));
-        return;
-      }
-
-      if (objectSaved) {
+      let anySaved = false;
+      if (objectResult.status === "rejected") {
+        failures.push(`Objects were not saved: ${describe(objectResult.reason)}`);
+      } else if (objectResult.value) {
+        const saved = objectResult.value;
+        anySaved = true;
         setObjects((current) => current.filter((item) => !objects.some((draft) => draft.id === item.id)));
         setSelected((current) => {
           if (current?.kind !== "object") return current;
           const index = objects.findIndex((item) => item.id === current.id);
-          return index >= 0 && objectResult.value[index] ? { kind: "object", id: objectResult.value[index].id } : current;
+          return index >= 0 && saved[index] ? { kind: "object", id: saved[index].id } : current;
         });
       }
-      if (polygonSaved) {
+      if (polygonResult.status === "rejected") {
+        failures.push(`Polygons were not saved: ${describe(polygonResult.reason)}`);
+      } else if (polygonResult.value) {
+        const saved = polygonResult.value;
+        anySaved = true;
         setPolygons((current) => current.filter((item) => !polygons.some((draft) => draft.id === item.id)));
         setSelected((current) => {
           if (current?.kind !== "polygon") return current;
           const index = polygons.findIndex((item) => item.id === current.id);
-          return index >= 0 && polygonResult.value[index] ? { kind: "polygon", id: polygonResult.value[index].id } : current;
+          return index >= 0 && saved[index] ? { kind: "polygon", id: saved[index].id } : current;
         });
       }
 
-      if (objectSaved || polygonSaved) {
+      if (anySaved) {
         try {
-          if (polygonSaved) await refreshPolygonsAndMapData();
+          if (polygonResult.status === "fulfilled" && polygonResult.value) await refreshPolygonsAndMapData();
           else await refresh();
         } catch (error) {
-          setErrorMessage(`Saved, but the list could not be refreshed: ${error instanceof Error ? error.message : String(error)}`);
+          failures.push(`Saved, but the list could not be refreshed: ${describe(error)}`);
         }
+      }
+      if (failures.length) {
+        const kept = objectResult.status === "rejected" || polygonResult.status === "rejected";
+        setErrorMessage([...failures, ...(kept ? ["The unsaved drafts were kept; press Save to retry."] : [])].join(". "));
       }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to save drafts.");

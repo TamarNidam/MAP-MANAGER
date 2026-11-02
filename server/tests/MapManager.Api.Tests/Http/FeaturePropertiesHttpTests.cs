@@ -58,7 +58,7 @@ public sealed class FeaturePropertiesHttpTests : IDisposable
     public async Task Updating_a_circle_without_a_radius_returns_problem_details()
     {
         var layerId = await GetDefaultLayerIdAsync();
-        var body = $"{{\"name\":\"x\",\"layerId\":\"{layerId}\",\"shape\":\"circle\",\"coordinates\":{JsonSerializer.Serialize(TestData.Square())}}}";
+        var body = $"{{\"name\":\"x\",\"layerId\":\"{layerId}\",\"shape\":\"circle\",\"version\":1,\"coordinates\":{JsonSerializer.Serialize(TestData.Square())}}}";
 
         var response = await _client.PutAsync(
             $"{PolygonsPath}/{layerId}",

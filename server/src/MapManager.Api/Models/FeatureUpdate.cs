@@ -10,6 +10,7 @@ namespace MapManager.Api.Models;
 /// <param name="Color">New color. Null removes it.</param>
 /// <param name="Shape">New shape. Null for objects.</param>
 /// <param name="RadiusMeters">New circle radius. Null removes it.</param>
+/// <param name="ExpectedVersion">The version the client last saw. The update only applies when it is still current.</param>
 /// <param name="UpdatedAt">Time of the update (UTC).</param>
 public sealed record FeatureUpdate(
     GeoJsonGeometry<GeoJson2DGeographicCoordinates> Geometry,
@@ -19,4 +20,5 @@ public sealed record FeatureUpdate(
     string? Color,
     PolygonShape? Shape,
     double? RadiusMeters,
+    int ExpectedVersion,
     DateTime UpdatedAt);

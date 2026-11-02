@@ -9,6 +9,9 @@ namespace MapManager.Api.Infrastructure;
 /// </summary>
 public sealed class MongoIndexInitializer : IHostedService
 {
+    /// <summary>Name of the unique clientId index. The repository looks for it in duplicate-key errors.</summary>
+    public const string ClientIdIndexName = "clientId_unique";
+
     private readonly MongoContext _context;
     private readonly ILogger<MongoIndexInitializer> _logger;
 
@@ -47,7 +50,17 @@ public sealed class MongoIndexInitializer : IHostedService
             // Filtering by layer.
             new CreateIndexModel<FeatureDocument>(
                 keys.Ascending(f => f.Properties.LayerId),
-                new CreateIndexOptions { Name = "layerId" })
+                new CreateIndexOptions { Name = "layerId" }),
+
+            // Idempotent creation: a clientId can be stored once. Features without a clientId are not indexed.
+            new CreateIndexModel<FeatureDocument>(
+                keys.Ascending(f => f.ClientId),
+                new CreateIndexOptions<FeatureDocument>
+                {
+                    Name = ClientIdIndexName,
+                    Unique = true,
+                    PartialFilterExpression = Builders<FeatureDocument>.Filter.Exists(f => f.ClientId)
+                })
         };
 
         await _context.Features.Indexes.CreateManyAsync(featureIndexes, cancellationToken);

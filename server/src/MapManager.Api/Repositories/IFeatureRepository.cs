@@ -10,11 +10,15 @@ namespace MapManager.Api.Repositories;
 public interface IFeatureRepository
 {
     /// <summary>
-    /// Inserts all documents and assigns their ids. Not atomic on standalone MongoDB: a rejected write triggers a
-    /// best-effort rollback that can itself fail, and other failures (such as a lost connection) are not rolled back.
+    /// Inserts the documents and assigns their ids. A document whose clientId is already stored is not inserted again:
+    /// the stored one is returned in its place. The result has one document per input, in input order.
+    /// Not atomic on standalone MongoDB: a rejected write triggers a best-effort rollback of this call's own inserts
+    /// (never of documents that existed before) that can itself fail, and other failures (such as a lost connection)
+    /// are not rolled back.
     /// </summary>
     /// <exception cref="Errors.InvalidGeometryException">MongoDB rejected one of the geometries.</exception>
-    Task InsertManyAsync(IReadOnlyList<FeatureDocument> documents, CancellationToken cancellationToken);
+    /// <exception cref="Errors.ConflictException">A clientId is already used by an item of the other kind.</exception>
+    Task<IReadOnlyList<FeatureDocument>> InsertManyAsync(IReadOnlyList<FeatureDocument> documents, CancellationToken cancellationToken);
 
     /// <summary>Returns up to <paramref name="limit"/> features of one kind, newest first.</summary>
     Task<IReadOnlyList<FeatureDocument>> ListAsync(FeatureKind kind, int limit, CancellationToken cancellationToken);
@@ -26,8 +30,12 @@ public interface IFeatureRepository
     /// <summary>Returns the feature, or null when no feature of this kind has the id.</summary>
     Task<FeatureDocument?> GetByIdAsync(string id, FeatureKind kind, CancellationToken cancellationToken);
 
-    /// <summary>Applies the update and returns the updated feature, or null when it does not exist.</summary>
+    /// <summary>
+    /// Applies the update when the feature is still at <see cref="FeatureUpdate.ExpectedVersion"/>, increments its
+    /// version and returns it. Returns null when the feature does not exist.
+    /// </summary>
     /// <exception cref="Errors.InvalidGeometryException">MongoDB rejected the new geometry.</exception>
+    /// <exception cref="Errors.ConflictException">The feature exists but its version is not the expected one.</exception>
     Task<FeatureDocument?> UpdateAsync(string id, FeatureKind kind, FeatureUpdate update, CancellationToken cancellationToken);
 
     /// <summary>Deletes the feature. Returns false when it does not exist.</summary>

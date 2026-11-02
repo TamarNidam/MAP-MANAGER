@@ -11,6 +11,7 @@ namespace MapManager.Api.Dtos;
 /// <param name="Color">Hex color "#RRGGBB", or null when none was set.</param>
 /// <param name="Coordinates">GeoJSON position: [longitude, latitude].</param>
 /// <param name="Center">The object's position as { lat, lon }. Derived, not stored.</param>
+/// <param name="Version">Concurrency token. Send it back unchanged in PUT; it increases with every update.</param>
 /// <param name="CreatedAt">Creation time (UTC).</param>
 /// <param name="UpdatedAt">Last update time (UTC).</param>
 public sealed record MapObjectDto(
@@ -22,5 +23,6 @@ public sealed record MapObjectDto(
     string? Color,
     double[] Coordinates,
     GeoPointDto Center,
+    int Version,
     DateTime CreatedAt,
     DateTime UpdatedAt) : MapItemDto;

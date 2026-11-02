@@ -22,6 +22,7 @@ public static class FeatureMapper
             CreatedBy = request.CreatedBy.Trim(),
             Color = request.Color
         },
+        ClientId = request.ClientId,
         CreatedAt = now,
         UpdatedAt = now
     };
@@ -40,6 +41,7 @@ public static class FeatureMapper
             Shape = request.Shape ?? PolygonShape.Polygon,
             RadiusMeters = request.RadiusMeters
         },
+        ClientId = request.ClientId,
         CreatedAt = now,
         UpdatedAt = now
     };
@@ -53,6 +55,7 @@ public static class FeatureMapper
         request.Color,
         Shape: null,
         RadiusMeters: null,
+        request.Version!.Value,
         now);
 
     /// <summary>Builds the field changes for a polygon update.</summary>
@@ -64,6 +67,7 @@ public static class FeatureMapper
         request.Color,
         request.Shape ?? PolygonShape.Polygon,
         request.RadiusMeters,
+        request.Version!.Value,
         now);
 
     /// <summary>Maps a document of either kind to its API shape.</summary>
@@ -83,6 +87,7 @@ public static class FeatureMapper
             document.Properties.Color,
             position,
             CenterCalculator.OfPosition(position),
+            document.Version,
             document.CreatedAt,
             document.UpdatedAt);
     }
@@ -101,6 +106,7 @@ public static class FeatureMapper
             document.Properties.RadiusMeters,
             rings,
             CenterCalculator.OfRing(rings[0]),
+            document.Version,
             document.CreatedAt,
             document.UpdatedAt);
     }

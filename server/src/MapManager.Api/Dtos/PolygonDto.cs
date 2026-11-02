@@ -12,6 +12,7 @@ namespace MapManager.Api.Dtos;
 /// <param name="RadiusMeters">Radius of a circle in meters, or null when none was set.</param>
 /// <param name="Coordinates">GeoJSON polygon coordinates: closed rings of [longitude, latitude] positions.</param>
 /// <param name="Center">Area-weighted centroid of the exterior ring as { lat, lon }. Derived, not stored.</param>
+/// <param name="Version">Concurrency token. Send it back unchanged in PUT; it increases with every update.</param>
 /// <param name="CreatedAt">Creation time (UTC).</param>
 /// <param name="UpdatedAt">Last update time (UTC).</param>
 public sealed record PolygonDto(
@@ -24,5 +25,6 @@ public sealed record PolygonDto(
     double? RadiusMeters,
     double[][][] Coordinates,
     GeoPointDto Center,
+    int Version,
     DateTime CreatedAt,
     DateTime UpdatedAt) : MapItemDto;

@@ -27,10 +27,25 @@ export class ApiError extends Error {
   }
 }
 
+const REQUEST_TIMEOUT_MS = 10_000;
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  const signal = init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+  try {
+    return await send<T>(path, { ...init, signal });
+  } catch (error) {
+    if (error instanceof ApiError || init?.signal?.aborted) throw error;
+    if (timeout.aborted) throw new ApiError("The server took too long to respond", 0);
+    if (error instanceof TypeError) throw new ApiError("Cannot reach the server", 0);
+    throw error;
+  }
+}
+
+async function send<T>(path: string, init: RequestInit): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers: { "Content-Type": "application/json", ...init.headers },
   });
 
   if (!response.ok) {
@@ -48,6 +63,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
+}
+
+// An already-deleted item is the outcome the caller wanted, so a 404 is success.
+async function deleteIfPresent(path: string): Promise<void> {
+  try {
+    await request<void>(path, { method: "DELETE" });
+  } catch (error) {
+    if (!(error instanceof ApiError && error.status === 404)) throw error;
+  }
 }
 
 export const api = {
@@ -74,7 +98,7 @@ export const api = {
     request<MapObjectDto>(`/api/objects/${id}`, { method: "PUT", body: JSON.stringify(item) }),
   updatePolygon: (id: string, item: UpdatePolygonRequest) =>
     request<PolygonDto>(`/api/polygons/${id}`, { method: "PUT", body: JSON.stringify(item) }),
-  deleteObject: (id: string) => request<void>(`/api/objects/${id}`, { method: "DELETE" }),
-  deletePolygon: (id: string) => request<void>(`/api/polygons/${id}`, { method: "DELETE" }),
+  deleteObject: (id: string) => deleteIfPresent(`/api/objects/${id}`),
+  deletePolygon: (id: string) => deleteIfPresent(`/api/polygons/${id}`),
   deleteAllPolygons: () => request<DeleteResultDto>("/api/polygons", { method: "DELETE" }),
 };

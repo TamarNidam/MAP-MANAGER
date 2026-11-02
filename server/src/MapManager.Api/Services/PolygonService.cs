@@ -30,8 +30,8 @@ public sealed class PolygonService : IPolygonService
         var now = _timeProvider.GetStorageUtcNow();
         var documents = requests.Select(r => FeatureMapper.ToDocument(r, now)).ToList();
 
-        await _repository.InsertManyAsync(documents, cancellationToken);
-        return documents.Select(FeatureMapper.ToPolygonDto).ToList();
+        var stored = await _repository.InsertManyAsync(documents, cancellationToken);
+        return stored.Select(FeatureMapper.ToPolygonDto).ToList();
     }
 
     public async Task<IReadOnlyList<PolygonDto>> ListAsync(int limit, CancellationToken cancellationToken)

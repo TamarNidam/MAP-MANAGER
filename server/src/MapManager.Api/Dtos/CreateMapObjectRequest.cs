@@ -20,6 +20,13 @@ public sealed class CreateMapObjectRequest
     [ObjectId]
     public string LayerId { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Optional client-generated id (up to 36 characters). Sending the same id again returns the already saved
+    /// object instead of creating a second one, so a retried request is safe.
+    /// </summary>
+    [StringLength(ValidationLimits.MaxClientIdLength, MinimumLength = 1)]
+    public string? ClientId { get; init; }
+
     /// <summary>Name of the user who creates the object. There is no authentication, so this is a plain string.</summary>
     [Required]
     [StringLength(ValidationLimits.MaxCreatedByLength)]

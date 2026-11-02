@@ -30,8 +30,8 @@ public sealed class MapObjectService : IMapObjectService
         var now = _timeProvider.GetStorageUtcNow();
         var documents = requests.Select(r => FeatureMapper.ToDocument(r, now)).ToList();
 
-        await _repository.InsertManyAsync(documents, cancellationToken);
-        return documents.Select(FeatureMapper.ToMapObjectDto).ToList();
+        var stored = await _repository.InsertManyAsync(documents, cancellationToken);
+        return stored.Select(FeatureMapper.ToMapObjectDto).ToList();
     }
 
     public async Task<IReadOnlyList<MapObjectDto>> ListAsync(int limit, CancellationToken cancellationToken)

@@ -113,7 +113,8 @@ export function useWorkspaceViewModel(): WorkspaceViewProps {
           pendingCount: drafts.unsavedCount,
           shape: drawing.selectedPolygonShape,
           confirmDeleteAll: selection.confirmDeleteAll,
-          actionsDisabled: drawing.geometrySession !== null || drafts.saving || !layers.activeLayer,
+          deleteAllCount: actions.deleteAllCount,
+          actionsDisabled: drawing.geometrySession !== null || drafts.saving || actions.countingDeleteAll || !layers.activeLayer,
           error,
           onDismissError: () => { actions.setErrorMessage(""); mapState.dismissWithinError(); },
           onShapeChange: (shape) => {
@@ -124,7 +125,7 @@ export function useWorkspaceViewModel(): WorkspaceViewProps {
           onCancelAdd: () => drawing.setDrawing(null),
           onSave: () => { void drafts.saveDrafts(actions.setErrorMessage); },
           onDelete: () => actions.deleteSelected("polygon"),
-          onDeleteAll: actions.handleDeleteAllPolygons,
+          onDeleteAll: () => { void actions.handleDeleteAllPolygons(); },
         },
         objects: {
           objectTypes,

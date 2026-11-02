@@ -1,74 +1,112 @@
 # Map Manager
 
-Map Manager is a client/server app for creating, viewing, filtering, and editing map objects and polygons.
-It combines those features in one interactive map and a matching staged data table.
+A client/server app for drawing, filtering and editing map objects and polygons, with a map and a table that show the same data.
 
-**Stack:** ASP.NET Core Web API (.NET 8), MongoDB 8, React, TypeScript, Vite, Leaflet, and TanStack Query.
+**Stack:** ASP.NET Core Web API (.NET 8), MongoDB 8, React, TypeScript, Vite, Leaflet, TanStack Query.
 
-## Run
-
-### Docker
-
-Copy `.env.example` to `.env` to override the clearly marked development-only MongoDB credentials, then run this one command from the repository root:
+## Quick start
 
 ```sh
 docker compose up --build
 ```
 
-Open the client at <http://localhost:8080>, the API docs (Swagger) at <http://localhost:5080/swagger>, and health at <http://localhost:5080/health>. The API root, <http://localhost:5080>, redirects to Swagger. The client proxies API requests through nginx, so Docker builds it with an empty `VITE_API_URL` and calls `/api` on its own origin.
+Optional: copy `.env.example` to `.env` to override the development MongoDB credentials.
+
+| What | URL |
+|---|---|
+| Client | <http://localhost:8080> |
+| Swagger | <http://localhost:5080/swagger> (the API root redirects here) |
+| Health | <http://localhost:5080/health> |
 
 ### Local development
 
-Prerequisites: Docker, .NET 8 SDK, and Node.js 20 or newer.
+Prerequisites: Docker, .NET 8 SDK, Node.js 20+.
 
-1. Start MongoDB: `docker compose up -d mongo`
-2. From `server/src/MapManager.Api`, run `dotnet run`.
-3. From `client`, run `npm ci`, then `npm run dev`.
-4. Open <http://localhost:5173>. The API runs at <http://localhost:5080>; set `VITE_API_URL` to override the client's default `http://localhost:5080`.
-5. Run tests from `server` with `dotnet test`.
+1. `docker compose up -d mongo`
+2. In `server/src/MapManager.Api`: `dotnet run`
+3. In `client`: `npm ci`, then `npm run dev`, and open <http://localhost:5173>. Set `VITE_API_URL` to point at a different API (default `http://localhost:5080`).
 
-The API creates MongoDB indexes and seeds the Default layer at startup. Local API configuration is in `appsettings.Development.json`; its credentials are development-only.
+The API creates its indexes and seeds the Default layer at startup.
+
+## Features
+
+- **Polygon panel:** draw a polygon, rectangle or circle; Save sends the unsaved shapes as one batch; delete the selected polygon or all polygons (with a confirmation that shows the current count).
+- **Objects panel:** place an object of a chosen type on the map and save the batch.
+- **Map Data panel:** one table of objects and polygons with search, type, creator, created-within, layer and "inside polygon" filters, a "Map view only" toggle, cursor paging and "Load all".
+- **Details card:** edit name, color, layer, object type and geometry (move, edit vertices), duplicate or delete; saved items are updated with PUT.
+- **Layers:** create, edit, delete and show/hide layers; a layer color is the default color of its items.
+- **Unsaved changes:** drafts are listed first in the table with an "Unsaved" dot, and drawn dashed on the map.
 
 ## Architecture
 
-The server follows **Controller -> Service -> Repository**. Controllers use DTOs and do not expose MongoDB types; document/DTO conversion is isolated in `Mapping/`. Objects and polygons share one `features` collection as GeoJSON, with a `2dsphere` index; layers use their own collection and indexes are initialized at startup. The React client uses a single `/api/map-data` query for both map and table views.
+```
+server/src/MapManager.Api/
+  Controllers/      HTTP endpoints, DTOs in and out
+  Services/         business rules, query parsing, cursor handling
+  Repositories/     MongoDB access and filter building
+  Mapping/          document <-> DTO conversion, center calculation
+  Models/           documents and domain types
+  Validation/       request validation and GeoJSON rules
+  Infrastructure/   Mongo setup, indexes, error handling, health check
+server/tests/MapManager.Api.Tests/
+client/src/
+  hooks/            drafts, map data, selection, drawing, layers, feature actions
+  components/       panels, map, details card
+  geometry/         pure geometry helpers
+  api/              HTTP client, types, retry policy
+```
 
-## Layout decision
+The server follows Controller -> Service -> Repository. Controllers and DTOs never expose MongoDB types.
 
-The brief defines four panels: the map on the left and Polygon, Objects, and Map Data down the right. An earlier iteration merged Polygon and Objects into one Draw panel and added a Layers panel because the right column felt crowded. That deviated from the brief, so the panels are split again and layer selection and management live in a compact Map Data header control.
+Objects and polygons are stored in one `features` collection as GeoJSON, with a `kind` property. The table needs a single list across both kinds, sorted newest first, filtered and cursor-paged; with one collection that is one query. It is backed by the indexes created in `MongoIndexInitializer`: `2dsphere` on geometry (inside-polygon and bbox filters), `createdAt` + `_id` descending (paging), `kind` + `objectType`, `kind` + `createdAt` + `_id`, `layerId`, and a unique partial index on `clientId`. Layers live in their own collection.
 
-## API overview
+## API
 
-| Method | Route | Purpose |
-|---|---|---|
-| GET | `/health` | MongoDB-backed health status. |
-| GET | `/api/object-types` | List supported object types. |
-| GET, POST | `/api/layers` | List or create layers. |
-| PUT, DELETE | `/api/layers/{id}` | Update or delete a layer. |
-| GET, POST | `/api/objects` | List or batch-create objects. |
-| GET, PUT, DELETE | `/api/objects/{id}` | Read, replace, or delete an object. |
-| GET, POST | `/api/polygons` | List or batch-create polygons. |
-| GET, PUT, DELETE | `/api/polygons/{id}` | Read, replace, or delete a polygon. |
-| DELETE | `/api/polygons` | Delete all polygons; returns `{ deletedCount }`. |
-| GET | `/api/map-data` | Filter and cursor-page objects and polygons. |
+| Resource | Routes |
+|---|---|
+| Object types | `GET /api/object-types` |
+| Layers | `GET, POST /api/layers`; `PUT, DELETE /api/layers/{id}` |
+| Objects | `GET, POST /api/objects` (POST is a batch); `GET, PUT, DELETE /api/objects/{id}` |
+| Polygons | `GET, POST /api/polygons` (POST is a batch); `GET, PUT, DELETE /api/polygons/{id}`; `DELETE /api/polygons` deletes all |
+| Map data | `GET /api/map-data` |
+| Health | `GET /health` |
 
-`/api/map-data` accepts `type`, `creator`, `createdWithinDays`, `within`, `q`, `layers`, `bbox`, `limit`, and `cursor`; its response is `{ items, nextCursor }`.
+`/api/map-data` accepts `type`, `creator`, `createdWithinDays`, `within`, `q`, `layers`, `bbox`, `limit` and `cursor`, and returns `{ items, nextCursor }`. Request and response schemas are in Swagger.
 
-## Design decisions and assumptions
+## Design decisions
 
-- One `features` collection stores both kinds of GeoJSON feature. The table merges polygons and objects so the map and table show the same filtered, paged list.
-- Coordinates use GeoJSON `[lon, lat]`; `center` is computed by the server, not stored.
-- Save creates items (batch POST); PUT replaces the full editable item. Batch creation validates all items first; rollback after a MongoDB insertion failure is best-effort.
-- Cursor pagination is sorted by `createdAt` descending and then `_id` descending; pages load on demand. **Map view only** adds a padded viewport filter; **Load all** stops at 1,000 items.
-- Map and table are two views of the same list. Drafts appear first. Item eyes and layer visibility are client-only state.
-- A polygon with shape `circle` must have `radiusMeters` greater than 0; other shapes cannot have one.
-- Swagger is enabled in all environments for reviewer convenience; it would be restricted in production.
-- There is no authentication; `createdBy` is a plain string. Deletes are hard deletes.
-- Leaflet does not support map rotation in this app.
+- **Beyond the brief:** PUT editing (a saved item can be corrected without delete and re-create), layers (group and color items, and show or hide groups), filtering and cursor pagination (the table stays usable as the data grows).
+- **One list, two views:** the map and the table render the same `/api/map-data` pages and filters. Drafts are always shown first. "Map view only" only adds a padded viewport `bbox` to the same query.
+- **Coordinate order:** the server and GeoJSON use `[lon, lat]`; Leaflet uses `[lat, lon]`. The client converts in one place (`geometry/coordinates.ts`).
+- **`center` is computed:** the server derives it from the geometry on every read and never stores it, so it cannot go stale.
+- **Pagination:** sorted by `createdAt` descending, then `_id` descending. Pages are addressed by cursor, never `skip`, so deep pages cost the same as the first.
+- **Hard delete:** deleted items are removed. `DELETE /api/polygons` exists because the brief requires it. A layer that still has items, and the default layer, cannot be deleted (409).
+- **Object types** are a closed set served by `GET /api/object-types`, so the client and the server validate against the same list.
+- **Optimistic concurrency:** each feature has a `version`. PUT must send it; a stale version returns 409, and the client reloads the item and keeps the user's edits on screen. Items stored before versions existed count as version 1.
+- **Idempotent create:** the client sends each draft's UUID as `clientId`. A unique partial index makes a repeated create return the stored item, so a Save retried after a lost response does not duplicate it.
+- **Client resilience:** network errors and 5xx are retried with backoff (up to 3 retries), 4xx are not; requests time out after 10 seconds; DELETE on an already-deleted item counts as success; when one half of a save fails, saved drafts are removed and the failed ones stay for a retry.
+- **Swagger** is enabled in all environments for reviewer convenience.
+
+## Tests
+
+- **Server:** `dotnet test` from `server`. 35 tests. They need Docker: HTTP-level tests run the API against a real MongoDB 8 started with Testcontainers. Other tests cover validation, query parsing, filter building, center calculation and concurrency.
+- **Client:** `npm test` from `client`. 20 tests (Vitest): geometry helpers, the API client (retry, timeout, network errors, DELETE 404, 409 handling), draft saving (lost response without duplicates, partial failure) and the details card (conflict message keeps edits, buttons disabled while saving).
+- **Smoke:** `scripts/smoke.sh` starts the Docker stack and calls the API through the client's nginx.
+- There are no automated UI or end-to-end tests.
 
 ## Known limitations
 
-- The map-view bbox uses an approximate rectangular geographic extent.
-- Load all is capped at 1,000 items; narrow filters for larger datasets.
-- Local credentials are development defaults only; configure real credentials before deployment.
-- The app has no authentication or authorization.
+- **Batch create is not atomic.** Standalone MongoDB has no transactions, so a failed batch is rolled back best-effort, and a failed rollback can leave part of the batch saved. The client saves objects and polygons as two requests and keeps only the failed part as drafts.
+- **Deleting a layer can race with creating an item** in that layer: the checks and the writes are separate operations, so an item can end up pointing at a deleted layer.
+- **"Load all" stops at 1,000 items;** narrow the filters for larger data sets.
+- **The "Map view only" bbox is approximate:** it is the viewport padded by 25% and treated as a plain rectangle.
+- **A retried PUT** whose first response was lost returns 409 against its own write; the user sees the conflict message.
+- **No authentication;** `createdBy` is a plain string.
+- **Credentials** in `.env.example` and `appsettings.Development.json` are for local development only.
+
+## What I would do next
+
+- Run the Docker smoke test in CI.
+- Add end-to-end UI tests for drawing and editing.
+- Use MongoDB transactions (replica set) for batch create and layer deletion.
+- Restrict Swagger and add authentication before any shared deployment.

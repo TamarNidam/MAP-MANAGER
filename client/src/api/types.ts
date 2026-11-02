@@ -24,6 +24,7 @@ export type MapObjectDto = {
   center: GeoPointDto;
   createdAt: string;
   updatedAt: string;
+  version?: number;
 };
 
 export type PolygonDto = {
@@ -38,9 +39,11 @@ export type PolygonDto = {
   center: GeoPointDto;
   createdAt: string;
   updatedAt: string;
+  version?: number;
 };
 
 export type CreateMapObjectRequest = {
+  clientId: string;
   name: string;
   objectType: string;
   layerId: string;
@@ -50,6 +53,7 @@ export type CreateMapObjectRequest = {
 };
 
 export type CreatePolygonRequest = {
+  clientId: string;
   name: string;
   layerId: string;
   createdBy: string;
@@ -65,6 +69,7 @@ export type UpdateMapObjectRequest = {
   layerId: string;
   color?: string;
   coordinates: [number, number];
+  version?: number;
 };
 
 export type UpdatePolygonRequest = {
@@ -74,6 +79,7 @@ export type UpdatePolygonRequest = {
   shape: "polygon" | "rectangle" | "circle";
   radiusMeters?: number;
   coordinates: number[][][];
+  version?: number;
 };
 
 export type DeleteResultDto = { deletedCount: number };

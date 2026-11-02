@@ -7,6 +7,7 @@ type PolygonPanelProps = {
   pendingCount: number;
   shape: DrawingShape;
   confirmDeleteAll: boolean;
+  deleteAllCount: number | null;
   actionsDisabled: boolean;
   error: string;
   onDismissError: () => void;
@@ -53,7 +54,7 @@ export function PolygonPanel(props: PolygonPanelProps) {
       </div>
       <div className="polygon-delete-all">
         <button className="button button-danger" disabled={props.actionsDisabled} onClick={props.onDeleteAll}>
-          {props.confirmDeleteAll ? "Confirm?" : "Delete all"}
+          {props.confirmDeleteAll ? `Confirm? (${props.deleteAllCount ?? "all"} will be deleted)` : "Delete all"}
         </button>
       </div>
     </section>

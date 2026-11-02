@@ -154,7 +154,7 @@ export function useMapFilters() {
     ...(within ? { within } : {}),
     ...(query ? { q: query } : {}),
     ...(mapViewOnly && bbox ? { bbox } : {}),
-    limit: 200,
+    limit: 100,
   };
 
   return {

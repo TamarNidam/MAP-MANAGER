@@ -16,6 +16,11 @@ public sealed class UpdatePolygonRequest : IValidatableObject
     [ObjectId]
     public string LayerId { get; init; } = string.Empty;
 
+    /// <summary>The polygon's "version" as last read. A different current version makes the update fail with 409.</summary>
+    [Required]
+    [Range(1, int.MaxValue - 1)]
+    public int? Version { get; init; }
+
     /// <summary>Hex color in the form "#RRGGBB". Leaving it out removes the current color.</summary>
     [RegularExpression(ValidationLimits.HexColorPattern, ErrorMessage = ValidationLimits.HexColorMessage)]
     public string? Color { get; init; }

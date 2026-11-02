@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "../api/client";
+import { rethrowConflict } from "../api/conflict";
+import { withRetry } from "../api/retry";
 import type { EditableFields } from "../components/DetailsCard";
 import { centroidOfRing } from "../geometry/centroid";
 import { leafletToGeoJson } from "../geometry/coordinates";
@@ -23,6 +25,8 @@ type UseWorkspaceActionsOptions = {
 
 export function useWorkspaceActions({ drafts, drawing, filters, mapState, selection }: UseWorkspaceActionsOptions) {
   const [errorMessage, setErrorMessage] = useState("");
+  const [deleteAllCount, setDeleteAllCount] = useState<number | null>(null);
+  const [countingDeleteAll, setCountingDeleteAll] = useState(false);
 
   const deleteObject = useMutation({
     mutationFn: (id: string) => api.deleteObject(id),
@@ -68,13 +72,31 @@ export function useWorkspaceActions({ drafts, drawing, filters, mapState, select
     else deletePolygon.mutate(selected.id);
   };
 
-  const handleDeleteAllPolygons = () => {
-    if (!selection.confirmDeleteAll) {
-      selection.setConfirmDeleteAll(true);
+  const handleDeleteAllPolygons = async () => {
+    if (selection.confirmDeleteAll) {
+      deleteAllPolygons.mutate();
       return;
     }
-    deleteAllPolygons.mutate();
+    // Count from a fresh query so the confirmation reflects polygons other users may have added.
+    setCountingDeleteAll(true);
+    setErrorMessage("");
+    try {
+      const polygons = await api.getPolygons();
+      await mapState.invalidatePolygonsAndMapData();
+      if (!polygons.length) {
+        setErrorMessage("There are no saved polygons to delete.");
+        return;
+      }
+      setDeleteAllCount(polygons.length);
+      selection.setConfirmDeleteAll(true);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Unable to count polygons.");
+    } finally {
+      setCountingDeleteAll(false);
+    }
   };
+
+  const handleConflict = (error: unknown) => rethrowConflict(error, mapState.invalidatePolygonsAndMapData);
 
   const saveDetails = async (item: TableItem, fields: EditableFields) => {
     const itemWithGeometry = drawing.applyGeometry(item);
@@ -117,22 +139,26 @@ export function useWorkspaceActions({ drafts, drawing, filters, mapState, select
       const coordinates = drawing.geometrySession?.kind === "object" && drawing.geometrySession.id === item.id
         ? leafletToGeoJson(drawing.geometrySession.point)
         : item.coordinates;
-      await api.updateObject(item.id, {
+      const body = {
         name: fields.name,
         objectType: fields.objectType,
         layerId: fields.layerId,
         ...(fields.color ? { color: fields.color } : {}),
         coordinates,
-      });
+        ...(item.version !== undefined ? { version: item.version } : {}),
+      };
+      await withRetry(() => api.updateObject(item.id, body)).catch(handleConflict);
     } else {
-      await api.updatePolygon(item.id, {
+      const body = {
         name: fields.name,
         layerId: fields.layerId,
         ...(fields.color ? { color: fields.color } : {}),
         shape: polygonShape,
         ...(polygonShape === "circle" && polygonRadius !== undefined ? { radiusMeters: polygonRadius } : {}),
         coordinates: itemWithGeometry.kind === "polygon" ? itemWithGeometry.coordinates : item.coordinates,
-      });
+        ...(item.version !== undefined ? { version: item.version } : {}),
+      };
+      await withRetry(() => api.updatePolygon(item.id, body)).catch(handleConflict);
     }
     if (item.kind === "polygon") await mapState.invalidatePolygonsAndMapData();
     else await mapState.invalidateMapData();
@@ -171,10 +197,10 @@ export function useWorkspaceActions({ drafts, drawing, filters, mapState, select
   const deleteDetailsItem = async (item: TableItem) => {
     if (item.saved) {
       if (item.kind === "object") {
-        await api.deleteObject(item.id);
+        await withRetry(() => api.deleteObject(item.id));
         await mapState.invalidateMapData();
       } else {
-        await api.deletePolygon(item.id);
+        await withRetry(() => api.deletePolygon(item.id));
         if (filters.within === item.id) filters.setWithin("");
         await mapState.invalidatePolygonsAndMapData();
       }
@@ -191,6 +217,8 @@ export function useWorkspaceActions({ drafts, drawing, filters, mapState, select
     setErrorMessage,
     deleteSelected,
     handleDeleteAllPolygons,
+    deleteAllCount,
+    countingDeleteAll,
     saveDetails,
     duplicateItem,
     deleteDetailsItem,

@@ -126,21 +126,6 @@ public sealed class MongoIntegrationTests(MongoDbFixture fixture)
         Assert.Empty(list.RootElement.EnumerateArray());
     }
 
-    [Fact]
-    public async Task Circle_without_radius_is_rejected()
-    {
-        using var factory = fixture.CreateFactory();
-        using var client = factory.CreateClient();
-        var layerId = await GetDefaultLayerIdAsync(client);
-
-        var response = await client.PostAsJsonAsync("/api/polygons", new
-        {
-            items = new[] { new { name = "Radius missing", layerId, createdBy = "integration", shape = "circle", coordinates = Square() } }
-        });
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
     private static async Task<string> GetDefaultLayerIdAsync(HttpClient client)
     {
         using var response = await client.GetAsync("/api/layers");

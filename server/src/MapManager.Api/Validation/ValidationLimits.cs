@@ -33,6 +33,9 @@ public static class ValidationLimits
 
     public const int MaxCreatedByLength = 50;
 
+    /// <summary>Room for a GUID in text form.</summary>
+    public const int MaxClientIdLength = 36;
+
     /// <summary>Maximum number of rings in a polygon (one exterior ring plus holes).</summary>
     public const int MaxPolygonRings = 10;
 

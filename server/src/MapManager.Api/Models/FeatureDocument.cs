@@ -25,6 +25,20 @@ public sealed class FeatureDocument
     [BsonElement("properties")]
     public FeatureProperties Properties { get; set; } = new();
 
+    /// <summary>
+    /// Client-generated id that makes creation idempotent (unique when present). Null for features created without one.
+    /// </summary>
+    [BsonElement("clientId")]
+    [BsonIgnoreIfNull]
+    public string? ClientId { get; set; }
+
+    /// <summary>
+    /// Optimistic concurrency token, incremented on every update. Documents stored before this field existed have no
+    /// value in MongoDB and read as 1, because the property initializer is kept when the element is missing.
+    /// </summary>
+    [BsonElement("version")]
+    public int Version { get; set; } = 1;
+
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; }
 

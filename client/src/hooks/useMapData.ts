@@ -6,7 +6,7 @@ import { queryKeys } from "../api/queryKeys";
 import type { MapDataPageDto, MapDataQuery } from "../api/types";
 import { useMapQueries } from "./useMapQueries";
 
-const PAGE_SIZE = 200;
+const PAGE_SIZE = 100;
 const LOAD_ALL_LIMIT = 1000;
 
 type WithinFilter = {
